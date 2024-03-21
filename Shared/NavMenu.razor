@@ -1,0 +1,51 @@
+﻿<SfSidebar Width="250px" Animate="false" @bind-IsOpen="SidebarToggle">
+    <ChildContent>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="oi oi-home" aria-hidden="true"></span> Search
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="settings">
+                <span class="oi oi-home" aria-hidden="true"></span> Settings
+            </NavLink>
+        </div>
+        <div class="nav-item px-3">
+            <a class="nav-link" href="https://github.com/Cryosys/SearchCacher" target="_blank">
+                <span class="oi oi-home" aria-hidden="true"></span> Issues &amp; Feedback
+            </a>
+        </div>
+    </ChildContent>
+</SfSidebar>
+
+@code {
+    private SfSidebar? sidebar;
+    public bool SidebarToggle
+    {
+        get => _sidebarToggle;
+        set
+        {
+            _sidebarToggle = value;
+            if (_sidebarToggle == false)
+                _sidebarToggle = true;
+        }
+    }
+    private bool _sidebarToggle = false;
+    private bool collapseNavMenu = true;
+
+    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
+
+    private void ToggleNavMenu()
+    {
+        collapseNavMenu = !collapseNavMenu;
+    }
+
+    private void OpenChanged(bool state)
+    {
+        if (sidebar is null)
+            return;
+
+        if (!state)
+            SidebarToggle = true;
+    }
+}

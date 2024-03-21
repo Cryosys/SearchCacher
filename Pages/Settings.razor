@@ -1,0 +1,71 @@
+﻿@page "/settings"
+@using SearchCacher.Data
+@using Syncfusion.Blazor.Buttons;
+@using Syncfusion.Blazor.Notifications
+@using Syncfusion.Blazor.Spinner;
+@inject SearchService SearchService
+
+<SfToast ID="toast_default" @ref="ToastObj" Title="Info" Timeout="5000" Icon="e-meeting">
+    <ToastPosition X="Right" Y="Bottom" />
+</SfToast>
+
+<div style="display:flex;flex-direction:row;text-align:center;align-items:center">
+    <SfButton style="margin:5px" @onclick=InitDB>Init DB</SfButton>
+    <SfButton style="margin:5px" @onclick=DelDB>Delete DB</SfButton>
+    <div style="position: relative;width:50px">
+        <SfSpinner Size="20" @bind-Visible="@IsSpinnerVisible"/>
+    </div>
+</div>
+
+
+<br />
+@currentDir
+
+@code {
+    private SfToast ToastObj;
+    private bool IsSpinnerVisible { get; set; } = false;
+    private string currentDir = "";
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        SearchService.SubscribeToCurrentSearchDir((dir) => currentDir = dir);
+    }
+
+    protected async Task InitDB()
+    {
+        IsSpinnerVisible = true;
+        ShowToast("Initiating DB...");
+        Task initDBTask = SearchService.InitDB();
+        await initDBTask;
+
+        if (initDBTask.Status != TaskStatus.RanToCompletion)
+        {
+            ShowToast("Failed to init DB. Ex: " + initDBTask.Exception?.ToString());
+            return;
+        }
+
+        currentDir = "";
+        ShowToast("Done");
+        IsSpinnerVisible = false;
+    }
+
+    protected async void DelDB()
+    {
+        IsSpinnerVisible = true;
+        ShowToast("Deleting DB...");
+        SearchService.DelDB();
+        ShowToast("Done");
+        IsSpinnerVisible = false;
+    }
+
+    protected async void ShowToast(string info, int timeout = 2500)
+    {
+        await this.ToastObj.ShowAsync(new ToastModel()
+        {
+            Content = info,
+            Timeout = timeout
+        });
+    }
+}
