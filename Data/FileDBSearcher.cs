@@ -488,28 +488,8 @@ namespace SearchCacher
 	[JsonObject("Dir")]
 	internal class Dir
 	{
-		[JsonProperty("NameLowerCase")]
-		internal string NameLowerCase = "";
-
 		[JsonProperty("Name")]
 		internal string Name = "";
-
-		[JsonIgnore]
-		internal string FullPathLowerCase
-		{
-			get
-			{
-				string path    = "";
-				Dir? parentDir = Parent;
-				while (parentDir != null)
-				{
-					path      = parentDir.NameLowerCase + "\\" + path;
-					parentDir = parentDir.Parent;
-				}
-
-				return path += NameLowerCase;
-			}
-		}
 
 		[JsonIgnore]
 		internal string FullPath
@@ -543,9 +523,8 @@ namespace SearchCacher
 
 		internal Dir(string orgName, Dir? parentDir)
 		{
-			Name          = orgName;
-			NameLowerCase = orgName.ToLower();
-			Parent        = parentDir;
+			Name   = orgName;
+			Parent = parentDir;
 		}
 	}
 
@@ -555,14 +534,8 @@ namespace SearchCacher
 		[JsonProperty("Name")]
 		internal string Name = "";
 
-		[JsonProperty("NameLowerCase")]
-		internal string NameLowerCase = "";
-
 		[JsonIgnore]
 		internal string FullPath => Path.Combine(Parent.FullPath, Name);
-
-		[JsonIgnore]
-		internal string FullPathLowerCase => Path.Combine(Parent.FullPathLowerCase, NameLowerCase);
 
 		[JsonProperty("Parent")]
 		internal Dir Parent;
@@ -574,9 +547,8 @@ namespace SearchCacher
 
 		public File(string name, Dir parent)
 		{
-			Name          = name;
-			NameLowerCase = name.ToLower();
-			Parent        = parent;
+			Name   = name;
+			Parent = parent;
 		}
 	}
 }
