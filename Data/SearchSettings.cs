@@ -4,7 +4,7 @@
 	{
 		public string Pattern { get; set; } = "*.*";
 
-		public bool IsFileExt = false;
+		public bool SearchOnlyFileExt = false;
 
 		public bool SearchOnFullPath = false;
 
@@ -12,13 +12,13 @@
 
 		public bool SearchFiles = true;
 
-		public SearchSettings(string pattern = "*.*", bool isFileExt = false, bool searchDirs = true, bool searchFiles = true, bool searchOnFullPath = false)
+		public SearchSettings(string pattern = "*.*", bool searchOnlyFileExt = false, bool searchDirs = true, bool searchFiles = true, bool searchOnFullPath = false)
 		{
-			Pattern          = pattern;
-			IsFileExt        = isFileExt;
-			SearchDirs       = searchDirs;
-			SearchFiles      = searchFiles;
-			SearchOnFullPath = searchOnFullPath;
+			Pattern           = pattern;
+			SearchOnlyFileExt = searchOnlyFileExt;
+			SearchDirs        = searchDirs;
+			SearchFiles       = searchFiles;
+			SearchOnFullPath  = searchOnFullPath;
 		}
 	}
 }

@@ -28,7 +28,7 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr><td><SfSwitch @bind-Checked="data.isFileExt" Disabled="true" /></td><td><s>Only search in extensions</s></td></tr>
+                                <tr><td><SfSwitch @bind-Checked="data.searchOnlyFileExt" /></td><td>Only search in extensions</td></tr>
                                 <tr><td><SfSwitch @bind-Checked="data.searchOnFullPath" /></td><td>Search on full path</td></tr>
                                 <tr><td><SfSwitch @bind-Checked="data.searchDirs" /></td><td>Directories</td></tr>
                                 <tr><td><SfSwitch @bind-Checked="data.searchFiles" /></td><td>Files</td></tr>
@@ -101,7 +101,7 @@
 
         [Required]
         [Range(typeof(bool), "false", "true")]
-        public bool isFileExt
+        public bool searchOnlyFileExt
         {
             get;
             set;
@@ -169,7 +169,7 @@
         data.Paths = null;
 
         DateTime preSearch = DateTime.Now;
-        data.searchTask = searchService.GetSearchResult(new SearchSettings(data.pattern, data.isFileExt, data.searchDirs, data.searchFiles, data.searchOnFullPath));
+        data.searchTask = searchService.GetSearchResult(new SearchSettings(data.pattern, data.searchOnlyFileExt, data.searchDirs, data.searchFiles, data.searchOnFullPath));
         await data.searchTask;
         if (data.searchTask.Status != TaskStatus.RanToCompletion)
         {

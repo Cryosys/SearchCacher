@@ -350,6 +350,12 @@ namespace SearchCacher
 				if (settings.SearchFiles)
 					foreach (var file in _DB.Files)
 					{
+						if (settings.SearchOnlyFileExt && file.Extension == settings.Pattern)
+						{
+							dbResults.Add(file.FullPath);
+							continue;
+						}
+
 						if (settings.SearchOnFullPath)
 						{
 							if (Regex.IsMatch(file.FullPath, settings.Pattern, RegexOptions.IgnoreCase))
@@ -532,7 +538,10 @@ namespace SearchCacher
 	internal class File
 	{
 		[JsonProperty("Name")]
-		internal string Name = "";
+		internal string Name;
+
+		[JsonProperty("Extension")]
+		internal string Extension;
 
 		[JsonIgnore]
 		internal string FullPath => Path.Combine(Parent.FullPath, Name);
@@ -542,13 +551,15 @@ namespace SearchCacher
 
 		public File()
 		{
-			Name = "";
+			Name      = "";
+			Extension = "";
 		}
 
 		public File(string name, Dir parent)
 		{
-			Name   = name;
-			Parent = parent;
+			Name      = name;
+			Parent    = parent;
+			Extension = Path.GetExtension(name);
 		}
 	}
 }

@@ -106,7 +106,7 @@ namespace SearchCacher
 
 			lock (_dbInterface.LockObj)
 			{
-				if (settings.IsFileExt)
+				if (settings.SearchOnlyFileExt)
 				{
 					if (!_dbInterface.KeyExists(settings.Pattern))
 						return Array.Empty<string>();
