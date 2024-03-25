@@ -475,6 +475,12 @@ namespace SearchCacher
 				if (settings.SearchFiles)
 					foreach (var file in curDir.Files)
 					{
+						if (settings.SearchOnlyFileExt && file.Extension == settings.Pattern)
+						{
+							foundFiles.Add(file.FullPath);
+							continue;
+						}
+
 						if (settings.SearchOnFullPath)
 						{
 							if (Regex.IsMatch(file.FullPath, settings.Pattern, RegexOptions.IgnoreCase))
