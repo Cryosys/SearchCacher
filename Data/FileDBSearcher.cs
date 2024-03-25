@@ -553,6 +553,8 @@ namespace SearchCacher
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
 			try
 			{
+				Console.WriteLine($"{DateTime.Now.ToString("HH:mm:ss")} Saving DB");
+
 				if (!parentHasMaster)
 				{
 					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
@@ -565,6 +567,8 @@ namespace SearchCacher
 				if (!parentHasMaster)
 					if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
 						throw new Exception("Could not release master lock on file DB");
+
+				Console.WriteLine($"{DateTime.Now.ToString("HH:mm:ss")} Saved DB");
 			}
 			finally
 			{
