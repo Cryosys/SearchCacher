@@ -12,7 +12,7 @@ namespace SearchCacher
 
 		public static void Main(string[] args)
 		{
-			Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. 1.0.0.0";
+			Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. 1.0.1.0";
 
 			CryLib.Core.LibTools.ExceptionManager.bAllowCollection = true;
 			CryLib.Core.LibTools.ExceptionManager.bLogExceptions   = true;
