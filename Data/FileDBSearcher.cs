@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using SearchCacher.Tools;
 using System.Text.RegularExpressions;
 
 namespace SearchCacher
@@ -35,7 +36,7 @@ namespace SearchCacher
 		private FileDBConfig _config;
 
 		private Dir _DB;
-		private readonly object _dbLock = new object();
+		private readonly MultiLock _dbLock = new MultiLock();
 
 		private Thread? _autosaveThread;
 		private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
@@ -68,9 +69,20 @@ namespace SearchCacher
 
 		private void _RestoreParentRelation()
 		{
-			lock (_dbLock)
+			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			try
 			{
+				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not acquire master lock on file DB");
+
 				Recursive(_DB);
+
+				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not release master lock on file DB");
+			}
+			finally
+			{
+				cancelSource.Dispose();
 			}
 
 			void Recursive(Dir parentDir)
@@ -88,10 +100,23 @@ namespace SearchCacher
 
 		public void DelDB()
 		{
-			lock (_dbLock)
+			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			try
 			{
+				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not acquire master lock on file DB");
+
 				_config.DB = new Dir();
 				_DB        = _config.DB;
+
+				_SaveDB(true);
+
+				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not release master lock on file DB");
+			}
+			finally
+			{
+				cancelSource.Dispose();
 			}
 		}
 
@@ -100,13 +125,24 @@ namespace SearchCacher
 			return Task.Run(() =>
 			{
 				// Initiate the dir with no parent
-				lock (_dbLock)
+				CancellationTokenSource cancelSource = new CancellationTokenSource();
+				try
 				{
+					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+						throw new Exception("Could not acquire master lock on file DB");
+
 					_config = new FileDBConfig(path, new Dir(path, null));
 					_DB     = _config.DB;
 
 					Recursive(path, _DB);
-					_SaveDB();
+					_SaveDB(true);
+
+					if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+						throw new Exception("Could not release master lock on file DB");
+				}
+				finally
+				{
+					cancelSource.Dispose();
 				}
 			});
 
@@ -150,8 +186,12 @@ namespace SearchCacher
 
 		public void AddPath(string path)
 		{
-			lock (_dbLock)
+			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			try
 			{
+				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not acquire master lock on file DB");
+
 				string subPath      = path.Replace(_config.RootPath, "");
 				string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 
@@ -188,15 +228,26 @@ namespace SearchCacher
 					curDir.Directories = curDir.Directories.Append(new Dir(pathSplits.Last(), curDir)).ToArray();
 
 				_IsDirty = true;
-			}
 
-			Console.WriteLine("Added " + path);
+				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not release master lock on file DB");
+
+				Console.WriteLine("Added " + path);
+			}
+			finally
+			{
+				cancelSource.Dispose();
+			}
 		}
 
 		public void UpdatePath(string oldPath, string newPath)
 		{
-			lock (_dbLock)
+			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			try
 			{
+				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not acquire master lock on file DB");
+
 				string subPath         = oldPath.Replace(_config.RootPath, "");
 				string[] pathSplits    = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 				string[] newPathSplits = newPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
@@ -247,15 +298,26 @@ namespace SearchCacher
 				}
 
 				_IsDirty = true;
-			}
 
-			Console.WriteLine("Update from " + oldPath + " to " + newPath);
+				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not release master lock on file DB");
+
+				Console.WriteLine("Update from " + oldPath + " to " + newPath);
+			}
+			finally
+			{
+				cancelSource.Dispose();
+			}
 		}
 
 		public void DeletePath(string path)
 		{
-			lock (_dbLock)
+			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			try
 			{
+				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not acquire master lock on file DB");
+
 				string subPath      = path.Replace(_config.RootPath, "");
 				string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 
@@ -307,15 +369,26 @@ namespace SearchCacher
 				curDir.Directories = dirs.ToArray();
 
 				_IsDirty = true;
-			}
 
-			Console.WriteLine("Removed " + path);
+				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not release master lock on file DB");
+
+				Console.WriteLine("Removed " + path);
+			}
+			finally
+			{
+				cancelSource.Dispose();
+			}
 		}
 
 		public string?[] Search(SearchSettings settings)
 		{
-			lock (_dbLock)
+			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			try
 			{
+				if (!_dbLock.RequestMultiLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not acquire multi lock on file DB");
+
 				Console.WriteLine(settings.Pattern);
 				List<List<string>> results = new List<List<string>>();
 				Task[] searchTasks         = new Task[_DB.Directories.Length];
@@ -365,7 +438,11 @@ namespace SearchCacher
 							dbResults.Add(file.FullPath);
 					}
 
-				Task.WaitAll(searchTasks, TimeSpan.FromSeconds(60));
+				Task.WaitAll(searchTasks, TimeSpan.FromMinutes(3));
+
+				if (!_dbLock.ReleaseMultiLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not release master lock on file DB");
+
 				results.Add(dbResults);
 
 				List<string> combinedList = new List<string>();
@@ -374,12 +451,16 @@ namespace SearchCacher
 
 				return combinedList.ToArray();
 			}
+			finally
+			{
+				cancelSource.Dispose();
+			}
 
 			void RecursiveSearch(Dir curDir, List<string> foundFiles)
 			{
 				foreach (var dir in curDir.Directories)
 				{
-					if (settings.SearchDirs)
+					if (settings.SearchDirs && !settings.SearchOnlyFileExt)
 						if (settings.SearchOnFullPath)
 						{
 							if (Regex.IsMatch(dir.FullPath, settings.Pattern, RegexOptions.IgnoreCase))
@@ -461,11 +542,28 @@ namespace SearchCacher
 			}
 		}
 
-		private void _SaveDB()
+		private void _SaveDB(bool parentHasMaster = false)
 		{
-			lock (_dbLock)
+			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			try
+			{
+				if (!parentHasMaster)
+				{
+					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+						throw new Exception("Could not acquire master lock on file DB");
+				}
+
 				using (FileStream fileStream = new FileStream(DBPath, FileMode.Create, FileAccess.Write))
 					JsonExtensions.ToCryJson(_config, fileStream);
+
+				if (!parentHasMaster)
+					if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+						throw new Exception("Could not release master lock on file DB");
+			}
+			finally
+			{
+				cancelSource.Dispose();
+			}
 		}
 
 		[JsonObject("FileDBConfig")]
