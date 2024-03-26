@@ -2,7 +2,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
 </head>
 
-<SfSidebar Width="250px" Animate="false" @bind-IsOpen="SidebarToggle">
+<SfSidebar Width="250px" Animate="false" EnableGestures="false" @bind-IsOpen="SidebarToggle">
     <ChildContent>
         <div class="nav-item px-3">
             <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
@@ -23,7 +23,6 @@
 </SfSidebar>
 
 @code {
-    private SfSidebar? sidebar;
     public bool SidebarToggle
     {
         get => _sidebarToggle;
@@ -35,21 +34,4 @@
         }
     }
     private bool _sidebarToggle = false;
-    private bool collapseNavMenu = true;
-
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
-    {
-        collapseNavMenu = !collapseNavMenu;
-    }
-
-    private void OpenChanged(bool state)
-    {
-        if (sidebar is null)
-            return;
-
-        if (!state)
-            SidebarToggle = true;
-    }
 }
