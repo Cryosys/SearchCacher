@@ -24,7 +24,7 @@ namespace SearchCacher
 
 		public virtual void StopAutoSave() { }
 
-		public virtual void Save() { }
+		public virtual void SaveDB() { }
 	}
 
 	internal class FileDBSearcher : ISearcher
@@ -128,6 +128,8 @@ namespace SearchCacher
 				CancellationTokenSource cancelSource = new CancellationTokenSource();
 				try
 				{
+					Console.WriteLine("Starting init");
+
 					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
 						throw new Exception("Could not acquire master lock on file DB");
 
@@ -139,6 +141,8 @@ namespace SearchCacher
 
 					if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
 						throw new Exception("Could not release master lock on file DB");
+
+					Console.WriteLine("Finished init");
 				}
 				finally
 				{
@@ -148,7 +152,6 @@ namespace SearchCacher
 
 			void Recursive(string newPath, Dir parentDir)
 			{
-				Console.WriteLine(newPath);
 				CurrentSearchDir?.Invoke(newPath);
 				string[] innerDirs = Directory.GetDirectories(newPath);
 				parentDir.Directories = new Dir[innerDirs.Length];
@@ -514,11 +517,13 @@ namespace SearchCacher
 				if (_autosaveThread is null)
 					return;
 
+				_cancellationTokenSource.Cancel();
+
 				_autosaveThread.Join();
 			}
 		}
 
-		private void Save() => _SaveDB();
+		public void SaveDB() => _SaveDB();
 
 		private void _AutoSave()
 		{
@@ -526,15 +531,27 @@ namespace SearchCacher
 			{
 				while (!_cancellationTokenSource.IsCancellationRequested)
 				{
-					Thread.Sleep(TimeSpan.FromMinutes(5));
-					lock (_dbLock)
+					Task.Delay(TimeSpan.FromMinutes(5), _cancellationTokenSource.Token).Wait(_cancellationTokenSource.Token);
+
+					if (!_IsDirty)
+						continue;
+
+					CancellationTokenSource cancelSource = new CancellationTokenSource();
+					try
 					{
-						if (!_IsDirty)
-							continue;
+						if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+							throw new Exception("Could not acquire master lock on file DB");
 
 						_SaveDB();
 
 						_IsDirty = false;
+
+						if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+							throw new Exception("Could not release master lock on file DB");
+					}
+					finally
+					{
+						cancelSource.Dispose();
 					}
 				}
 			}
@@ -556,12 +573,10 @@ namespace SearchCacher
 				Console.WriteLine($"{DateTime.Now.ToString("HH:mm:ss")} Saving DB");
 
 				if (!parentHasMaster)
-				{
 					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
 						throw new Exception("Could not acquire master lock on file DB");
-				}
 
-				using (FileStream fileStream = new FileStream(DBPath, FileMode.Create, FileAccess.Write))
+				using (FileStream fileStream = new FileStream(DBPath, FileMode.Create, FileAccess.ReadWrite))
 					JsonExtensions.ToCryJson(_config, fileStream);
 
 				if (!parentHasMaster)
@@ -569,6 +584,10 @@ namespace SearchCacher
 						throw new Exception("Could not release master lock on file DB");
 
 				Console.WriteLine($"{DateTime.Now.ToString("HH:mm:ss")} Saved DB");
+			}
+			catch (Exception ex)
+			{
+				Console.WriteLine(ex.ToString());
 			}
 			finally
 			{

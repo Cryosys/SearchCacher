@@ -68,7 +68,7 @@ namespace SearchCacher
 			_service?.CleanUp();
 
 			// Save the DB just in case
-			_service?.Save();
+			_service?.SaveDB();
 		}
 
 		private static void Dog_Watched(Watchdog.WatchedEventArgs data)

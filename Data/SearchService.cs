@@ -30,7 +30,7 @@ namespace SearchCacher.Data
 
 		internal void DeletePath(string path) => _searchHandler.DeletePath(path);
 
-		internal void Save() => _searchHandler.Save();
+		internal void SaveDB() => _searchHandler.SaveDB();
 
 		internal void CleanUp() => _searchHandler.StopAutoSave();
 

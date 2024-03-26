@@ -12,6 +12,7 @@
 <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
     <SfButton style="margin:5px" @onclick=InitDB>Init DB</SfButton>
     <SfButton style="margin:5px" @onclick=DelDB>Delete DB</SfButton>
+    <SfButton style="margin:5px" @onclick=SaveDB>Save DB</SfButton>
     <div style="position: relative;width:50px">
         <SfSpinner Size="20" @bind-Visible="@IsSpinnerVisible"/>
     </div>
@@ -51,12 +52,21 @@
         IsSpinnerVisible = false;
     }
 
-    protected async void DelDB()
+    protected void DelDB()
     {
         IsSpinnerVisible = true;
         ShowToast("Deleting DB...");
         SearchService.DelDB();
         ShowToast("Done");
+        IsSpinnerVisible = false;
+    }
+
+    protected void SaveDB()
+    {
+        IsSpinnerVisible = true;
+        ShowToast("Saving DB...");
+        SearchService.SaveDB();
+        ShowToast("Saved DB");
         IsSpinnerVisible = false;
     }
 
