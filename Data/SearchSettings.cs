@@ -12,13 +12,16 @@
 
 		public bool SearchFiles = true;
 
-		public SearchSettings(string pattern = "*.*", bool searchOnlyFileExt = false, bool searchDirs = true, bool searchFiles = true, bool searchOnFullPath = false)
+		public bool CaseSensitive = false;
+
+		public SearchSettings(string pattern = "*.*", bool searchOnlyFileExt = false, bool searchDirs = true, bool searchFiles = true, bool searchOnFullPath = false, bool caseSensitive = false)
 		{
 			Pattern           = pattern;
 			SearchOnlyFileExt = searchOnlyFileExt;
 			SearchDirs        = searchDirs;
 			SearchFiles       = searchFiles;
 			SearchOnFullPath  = searchOnFullPath;
+			CaseSensitive     = caseSensitive;
 		}
 	}
 }

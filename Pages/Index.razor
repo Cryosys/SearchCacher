@@ -32,6 +32,7 @@
                                 <tr><td><SfSwitch @bind-Checked="data.searchOnFullPath" /></td><td>Search on full path</td></tr>
                                 <tr><td><SfSwitch @bind-Checked="data.searchDirs" /></td><td>Directories</td></tr>
                                 <tr><td><SfSwitch @bind-Checked="data.searchFiles" /></td><td>Files</td></tr>
+                                <tr><td><SfSwitch @bind-Checked="data.caseSensitive" /></td><td>Case sensitive search</td></tr>
                             </tbody>
                         </table>
                     </ContentTemplate>
@@ -42,15 +43,15 @@
             <AccordionItems>
                 <AccordionItem Header="Info" Expanded="true">
                     <ContentTemplate>
-                            Enabling only extensions makes the search absolut. Meaning that only the specified extension will be searched for. <br />
-                            Example: You want to search for all txt files. Input only .txt in the search box, all other settings do not matter.<br />
+                        Enabling only extensions makes the search absolut. Meaning that only the specified extension will be searched for. <br />
+                        Example: You want to search for all txt files. Input only .txt in the search box, all other settings do not matter.<br />
                         <s>
                             The pattern is relative, meaning that '.txt' will only find a file for example that does not have a name and ends with '.txt'. Entering '*.txt' however will search for all files ending with '.txt'. <br />
                             Entering 'nua*' will search for all files and folders containing the char set 'nua' at any point in the name. Like Manual -> Ma*nua*l.
                         </s>
                         <br />
                         <br />
-                        The search pattern is Regex based. <a href="https://regex101.com/" target="_blank">You can test and generate regex patterns here.</a><br/>
+                        The search pattern is Regex based. <a href="https://regex101.com/" target="_blank">You can test and generate regex patterns here.</a><br />
                         Tl:dr; writing only a word, for example 'test' will find all paths involing this word, regardless of upper or lower case and anywhere in the path. <br />
                         It does not matter if the word has something before or after it. Writing 'subfolder*.*test' will find all paths that have at some point subfolder in it and AFTER it somewhere test. <br />
                         The search will only search in paths if you enable the option, this will take a bit more time, but not that much more.
@@ -101,35 +102,23 @@
 
         [Required]
         [Range(typeof(bool), "false", "true")]
-        public bool searchOnlyFileExt
-        {
-            get;
-            set;
-        } = false;
+        public bool searchOnlyFileExt { get; set; } = false;
 
         [Required]
         [Range(typeof(bool), "false", "true")]
-        public bool searchOnFullPath
-        {
-            get;
-            set;
-        } = false;
+        public bool searchOnFullPath { get; set; } = false;
 
         [Required]
         [Range(typeof(bool), "false", "true")]
-        public bool searchDirs
-        {
-            get;
-            set;
-        } = true;
+        public bool searchDirs { get; set; } = true;
 
         [Required]
         [Range(typeof(bool), "false", "true")]
-        public bool searchFiles
-        {
-            get;
-            set;
-        } = true;
+        public bool searchFiles { get; set; } = true;
+
+        [Required]
+        [Range(typeof(bool), "false", "true")]
+        public bool caseSensitive { get; set; } = false;
 
         [Required]
         [Range(typeof(bool), "false", "true")]
@@ -155,7 +144,8 @@
 
         try
         {
-            System.Text.RegularExpressions.Regex.IsMatch("", data.pattern);
+            if (!data.searchOnlyFileExt)
+                System.Text.RegularExpressions.Regex.IsMatch("", data.pattern);
         }
         catch (ArgumentException)
         {
@@ -169,11 +159,11 @@
         data.Paths = null;
 
         DateTime preSearch = DateTime.Now;
-        data.searchTask = searchService.GetSearchResult(new SearchSettings(data.pattern, data.searchOnlyFileExt, data.searchDirs, data.searchFiles, data.searchOnFullPath));
+        data.searchTask = searchService.GetSearchResult(new SearchSettings(data.pattern, data.searchOnlyFileExt, data.searchDirs, data.searchFiles, data.searchOnFullPath, data.caseSensitive));
         await data.searchTask;
         if (data.searchTask.Status != TaskStatus.RanToCompletion)
         {
-            ShowToast("Failed to init DB. Ex: " + data.searchTask.Exception?.ToString());
+            ShowToast("Failed to complete search. Ex: " + data.searchTask.Exception?.ToString());
             return;
         }
 

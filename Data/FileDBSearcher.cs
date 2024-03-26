@@ -416,10 +416,10 @@ namespace SearchCacher
 					{
 						if (settings.SearchOnFullPath)
 						{
-							if (Regex.IsMatch(dir.FullPath, settings.Pattern, RegexOptions.IgnoreCase))
+							if (Regex.IsMatch(dir.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 								dbResults.Add(dir.FullPath);
 						}
-						else if (Regex.IsMatch(dir.Name, settings.Pattern, RegexOptions.IgnoreCase))
+						else if (Regex.IsMatch(dir.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 							dbResults.Add(dir.FullPath);
 					}
 
@@ -434,10 +434,10 @@ namespace SearchCacher
 
 						if (settings.SearchOnFullPath)
 						{
-							if (Regex.IsMatch(file.FullPath, settings.Pattern, RegexOptions.IgnoreCase))
+							if (Regex.IsMatch(file.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 								dbResults.Add(file.FullPath);
 						}
-						else if (Regex.IsMatch(file.Name, settings.Pattern, RegexOptions.IgnoreCase))
+						else if (Regex.IsMatch(file.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 							dbResults.Add(file.FullPath);
 					}
 
@@ -466,10 +466,10 @@ namespace SearchCacher
 					if (settings.SearchDirs && !settings.SearchOnlyFileExt)
 						if (settings.SearchOnFullPath)
 						{
-							if (Regex.IsMatch(dir.FullPath, settings.Pattern, RegexOptions.IgnoreCase))
+							if (Regex.IsMatch(dir.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 								foundFiles.Add(dir.FullPath);
 						}
-						else if (Regex.IsMatch(dir.Name, settings.Pattern, RegexOptions.IgnoreCase))
+						else if (Regex.IsMatch(dir.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 							foundFiles.Add(dir.FullPath);
 
 					RecursiveSearch(dir, foundFiles);
@@ -486,10 +486,10 @@ namespace SearchCacher
 
 						if (settings.SearchOnFullPath)
 						{
-							if (Regex.IsMatch(file.FullPath, settings.Pattern, RegexOptions.IgnoreCase))
+							if (Regex.IsMatch(file.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 								foundFiles.Add(file.FullPath);
 						}
-						else if (Regex.IsMatch(file.Name, settings.Pattern, RegexOptions.IgnoreCase))
+						else if (Regex.IsMatch(file.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 							foundFiles.Add(file.FullPath);
 					}
 			}
