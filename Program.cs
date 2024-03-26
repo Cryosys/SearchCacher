@@ -1,3 +1,4 @@
+using CryLib.Core;
 using SearchCacher.Data;
 using Syncfusion.Blazor;
 using System.Reflection;
@@ -6,16 +7,24 @@ namespace SearchCacher
 {
 	public class Program
 	{
-		private static readonly string ConfigPath = Path.Combine(CryLib.Core.Paths.ExecuterPath, "config.cfg");
+		private static readonly string ConfigPath = Path.Combine(Paths.ExecuterPath, "config.cfg");
 
 		private static SearchService _service;
+		private static AdaptiveLogHandler<LogTypes> _logHandler = new AdaptiveLogHandler<LogTypes>(Path.Combine(Paths.AppPath, "Logs"));
 
 		public static void Main(string[] args)
 		{
+			// Add exception handler for unhandled exception in other threads or the GUI thread
+			AppDomain.CurrentDomain.UnhandledException += _CurrentDomain_UnhandledException;
+			TaskScheduler.UnobservedTaskException      += _TaskScheduler_UnobservedTaskException;
+
+			_logHandler.AddLog(LogTypes.Log);
+			_logHandler.StartHandler();
+
 			Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. 1.0.1.0";
 
-			CryLib.Core.LibTools.ExceptionManager.bAllowCollection = true;
-			CryLib.Core.LibTools.ExceptionManager.bLogExceptions   = true;
+			LibTools.ExceptionManager.bAllowCollection = true;
+			LibTools.ExceptionManager.bLogExceptions   = true;
 
 			if (!System.IO.File.Exists(ConfigPath))
 			{
@@ -69,6 +78,19 @@ namespace SearchCacher
 
 			// Save the DB just in case
 			_service?.SaveDB();
+
+			_logHandler.StopHandler();
+		}
+
+		public static void Log(string info)
+		{
+			// This function should never throw an exception as it could cause loops
+			try
+			{
+				Console.WriteLine(info);
+				_logHandler.Log(LogTypes.Log, info);
+			}
+			catch { }
 		}
 
 		private static void Dog_Watched(Watchdog.WatchedEventArgs data)
@@ -96,17 +118,33 @@ namespace SearchCacher
 							}
 						default:
 							{
-								Console.WriteLine($"Got changetype: {data.ChangeType}, we do nothing in this case");
+								Program.Log($"Got changetype: {data.ChangeType}, we do nothing in this case");
 								break;
 							}
 					}
 				}
 				catch (Exception ex)
 				{
-					Console.WriteLine(ex);
+					Log(ex.ToString());
 					CryLib.Core.LibTools.ExceptionManager.AddException(ex);
 				}
 			});
+		}
+
+		private static void _CurrentDomain_UnhandledException(object sender, System.UnhandledExceptionEventArgs e)
+		{
+			if (e.ExceptionObject is System.Exception ex)
+				Log(ex.ToString());
+		}
+
+		private static void _TaskScheduler_UnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+		{
+			Log(e.Exception.ToString());
+		}
+
+		private enum LogTypes
+		{
+			Log
 		}
 	}
 }

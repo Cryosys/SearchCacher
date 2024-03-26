@@ -26,7 +26,7 @@
 			lock (_masterLockObject)
 			{
 				_counter++;
-				Console.WriteLine("Acquired lock");
+				Program.Log("Acquired lock");
 				return true;
 			}
 		}
@@ -42,7 +42,7 @@
 						lock (_masterLockObject)
 						{
 							_counter++;
-							Console.WriteLine("Acquired lock");
+							Program.Log("Acquired lock");
 							return true;
 						}
 					}
@@ -57,7 +57,7 @@
 			lock (_masterLockObject)
 			{
 				_counter--;
-				Console.WriteLine("Released lock");
+				Program.Log("Released lock");
 				return true;
 			}
 		}
@@ -73,7 +73,7 @@
 						lock (_masterLockObject)
 						{
 							_counter--;
-							Console.WriteLine("Released lock");
+							Program.Log("Released lock");
 							return true;
 						}
 					}
@@ -96,7 +96,7 @@
 
 				_masterLockResetEvent.Reset();
 				_isMasterLocked = true;
-				Console.WriteLine("Acquired master lock");
+				Program.Log("Acquired master lock");
 				return true;
 			}
 		}
@@ -119,7 +119,7 @@
 						continue;
 
 					_masterLockResetEvent.Reset();
-					Console.WriteLine("Acquired master lock");
+					Program.Log("Acquired master lock");
 					return true;
 				}
 
@@ -141,7 +141,7 @@
 
 				_isMasterLocked = false;
 				_masterLockResetEvent.Set();
-				Console.WriteLine("Released master lock");
+				Program.Log("Released master lock");
 				return true;
 			}
 		}
@@ -162,7 +162,7 @@
 
 					_isMasterLocked = false;
 					_masterLockResetEvent.Set();
-					Console.WriteLine("Released master lock");
+					Program.Log("Released master lock");
 					return true;
 				}
 

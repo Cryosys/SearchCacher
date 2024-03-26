@@ -25,7 +25,7 @@ namespace SearchCacher
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine(ex.ToString());
+				Program.Log(ex.ToString());
 				return false;
 			}
 
@@ -35,7 +35,7 @@ namespace SearchCacher
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine(ex.ToString());
+				Program.Log(ex.ToString());
 				return false;
 			}
 
@@ -45,7 +45,7 @@ namespace SearchCacher
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine(ex.ToString());
+				Program.Log(ex.ToString());
 				return false;
 			}
 

@@ -40,7 +40,7 @@ namespace SearchCacher
 
 			void Recursive(string newPath, ref List<string> extensions)
 			{
-				Console.WriteLine(newPath);
+				Program.Log(newPath);
 				CurrentSearchDir?.Invoke(newPath);
 				string[] innerDirs = Directory.GetDirectories(newPath);
 

@@ -128,7 +128,7 @@ namespace SearchCacher
 				CancellationTokenSource cancelSource = new CancellationTokenSource();
 				try
 				{
-					Console.WriteLine("Starting init");
+					Program.Log("Starting init");
 
 					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
 						throw new Exception("Could not acquire master lock on file DB");
@@ -142,7 +142,7 @@ namespace SearchCacher
 					if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
 						throw new Exception("Could not release master lock on file DB");
 
-					Console.WriteLine("Finished init");
+					Program.Log("Finished init");
 				}
 				finally
 				{
@@ -235,7 +235,7 @@ namespace SearchCacher
 				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not release master lock on file DB");
 
-				Console.WriteLine("Added " + path);
+				Program.Log("Added " + path);
 			}
 			finally
 			{
@@ -305,7 +305,7 @@ namespace SearchCacher
 				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not release master lock on file DB");
 
-				Console.WriteLine("Update from " + oldPath + " to " + newPath);
+				Program.Log("Update from " + oldPath + " to " + newPath);
 			}
 			finally
 			{
@@ -376,7 +376,7 @@ namespace SearchCacher
 				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not release master lock on file DB");
 
-				Console.WriteLine("Removed " + path);
+				Program.Log("Removed " + path);
 			}
 			finally
 			{
@@ -392,7 +392,7 @@ namespace SearchCacher
 				if (!_dbLock.RequestMultiLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not acquire multi lock on file DB");
 
-				Console.WriteLine(settings.Pattern);
+				Program.Log(settings.Pattern);
 				List<List<string>> results = new List<List<string>>();
 				Task[] searchTasks         = new Task[_DB.Directories.Length];
 
@@ -570,7 +570,7 @@ namespace SearchCacher
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
 			try
 			{
-				Console.WriteLine($"{DateTime.Now.ToString("HH:mm:ss")} Saving DB");
+				Program.Log($"{DateTime.Now.ToString("HH:mm:ss")} Saving DB");
 
 				if (!parentHasMaster)
 					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
@@ -583,11 +583,11 @@ namespace SearchCacher
 					if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
 						throw new Exception("Could not release master lock on file DB");
 
-				Console.WriteLine($"{DateTime.Now.ToString("HH:mm:ss")} Saved DB");
+				Program.Log($"{DateTime.Now.ToString("HH:mm:ss")} Saved DB");
 			}
 			catch (Exception ex)
 			{
-				Console.WriteLine(ex.ToString());
+				Program.Log(ex.ToString());
 			}
 			finally
 			{
