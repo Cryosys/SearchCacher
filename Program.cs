@@ -21,7 +21,7 @@ namespace SearchCacher
 			_logHandler.AddLog(LogTypes.Log);
 			_logHandler.StartHandler();
 
-			Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. 1.0.1.0";
+			Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. 1.0.2.0";
 
 			LibTools.ExceptionManager.bAllowCollection = true;
 			LibTools.ExceptionManager.bLogExceptions   = true;
