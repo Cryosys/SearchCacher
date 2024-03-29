@@ -190,9 +190,10 @@ namespace SearchCacher
 		public void AddPath(string path)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			bool acquiredLock                    = false;
 			try
 			{
-				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+				if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
 					throw new Exception("Could not acquire master lock on file DB");
 
 				string subPath      = path.Replace(_config.RootPath, "");
@@ -231,24 +232,32 @@ namespace SearchCacher
 					curDir.Directories = curDir.Directories.Append(new Dir(pathSplits.Last(), curDir)).ToArray();
 
 				_IsDirty = true;
-
-				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
-					throw new Exception("Could not release master lock on file DB");
-
-				Program.Log("Added " + path);
 			}
 			finally
 			{
+				try
+				{
+					// We can only release the lock if we also took it
+					if (acquiredLock)
+						if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+							throw new Exception("Could not release master lock on file DB");
+				}
+				catch { }
+
 				cancelSource.Dispose();
+
+				// Event though this looks weird in the log, we log the add after releasing the log so that another thread can acquire it faster
+				Program.Log("Added " + path);
 			}
 		}
 
 		public void UpdatePath(string oldPath, string newPath)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			bool acquiredLock                    = false;
 			try
 			{
-				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+				if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
 					throw new Exception("Could not acquire master lock on file DB");
 
 				string subPath         = oldPath.Replace(_config.RootPath, "");
@@ -301,24 +310,32 @@ namespace SearchCacher
 				}
 
 				_IsDirty = true;
-
-				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
-					throw new Exception("Could not release master lock on file DB");
-
-				Program.Log("Update from " + oldPath + " to " + newPath);
 			}
 			finally
 			{
+				try
+				{
+					// We can only release the lock if we also took it
+					if (acquiredLock)
+						if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+							throw new Exception("Could not release master lock on file DB");
+				}
+				catch { }
+
 				cancelSource.Dispose();
+
+				// Event though this looks weird in the log, we log the update after releasing the log so that another thread can acquire it faster
+				Program.Log("Update from " + oldPath + " to " + newPath);
 			}
 		}
 
 		public void DeletePath(string path)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			bool acquiredLock                    = false;
 			try
 			{
-				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+				if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
 					throw new Exception("Could not acquire master lock on file DB");
 
 				string subPath      = path.Replace(_config.RootPath, "");
@@ -372,15 +389,22 @@ namespace SearchCacher
 				curDir.Directories = dirs.ToArray();
 
 				_IsDirty = true;
-
-				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
-					throw new Exception("Could not release master lock on file DB");
-
-				Program.Log("Removed " + path);
 			}
 			finally
 			{
+				try
+				{
+					// We can only release the lock if we also took it
+					if (acquiredLock)
+						if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+							throw new Exception("Could not release master lock on file DB");
+				}
+				catch { }
+
 				cancelSource.Dispose();
+
+				// Event though this looks weird in the log, we log the delete after releasing the log so that another thread can acquire it faster
+				Program.Log("Removed " + path);
 			}
 		}
 
