@@ -18,11 +18,13 @@ namespace SearchCacher
 			AppDomain.CurrentDomain.UnhandledException += _CurrentDomain_UnhandledException;
 			TaskScheduler.UnobservedTaskException      += _TaskScheduler_UnobservedTaskException;
 
+			_logHandler.LoggedEntry += _logHandler_LoggedEntry;
 			_logHandler.AddLog(LogTypes.Log);
 			_logHandler.StartHandler();
 
 			Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. 1.0.2.0";
 
+			LibTools.ExceptionManager.ExceptionCaught += ExceptionManager_ExceptionCaught;
 			LibTools.ExceptionManager.bAllowCollection = true;
 			LibTools.ExceptionManager.bLogExceptions   = true;
 
@@ -82,12 +84,31 @@ namespace SearchCacher
 			_logHandler.StopHandler();
 		}
 
-		public static void Log(string info)
+		private static void ExceptionManager_ExceptionCaught(ExceptionManager.ExceptionInfo exInfo)
+		{
+			// This function should never throw an exception as it could cause loops
+			try
+			{
+				Log(exInfo.CaughtException.ToString());
+			}
+			catch { }
+		}
+
+		private static void _logHandler_LoggedEntry(LogTypes logType, string info)
 		{
 			// This function should never throw an exception as it could cause loops
 			try
 			{
 				Console.WriteLine(info);
+			}
+			catch { }
+		}
+
+		public static void Log(string info)
+		{
+			// This function should never throw an exception as it could cause loops
+			try
+			{
 				_logHandler.Log(LogTypes.Log, info);
 			}
 			catch { }
