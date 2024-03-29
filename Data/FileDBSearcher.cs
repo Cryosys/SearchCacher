@@ -199,7 +199,18 @@ namespace SearchCacher
 				string subPath      = path.Replace(_config.RootPath, "");
 				string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 
-				bool isFile = !System.IO.File.GetAttributes(path).HasFlag(FileAttributes.Directory);
+				bool isFile = false;
+
+				try
+				{
+					isFile = !System.IO.File.GetAttributes(path).HasFlag(FileAttributes.Directory);
+				}
+				catch (Exception ex) when(ex is FileNotFoundException || ex is DirectoryNotFoundException || ex is IOException)
+				{
+					// This may happen if the file or directory does not exist anymore
+					// At this point we just return and assume everything is fine
+					return;
+				}
 
 				Dir curDir = _DB;
 
@@ -265,7 +276,18 @@ namespace SearchCacher
 				string[] newPathSplits = newPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 
 				// Has to be the new path as the old folder or file does not exist anymore at this point
-				bool isFile = !System.IO.File.GetAttributes(newPath).HasFlag(FileAttributes.Directory);
+				bool isFile = false;
+
+				try
+				{
+					isFile = !System.IO.File.GetAttributes(newPath).HasFlag(FileAttributes.Directory);
+				}
+				catch (Exception ex) when(ex is FileNotFoundException || ex is DirectoryNotFoundException || ex is IOException)
+				{
+					// This may happen if the file or directory does not exist anymore
+					// At this point we just return and assume everything is fine
+					return;
+				}
 
 				Dir curDir = _DB;
 
