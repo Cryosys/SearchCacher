@@ -10,6 +10,7 @@ namespace SearchCacher
 		private static readonly string ConfigPath = Path.Combine(Paths.ExecuterPath, "config.cfg");
 
 		private static SearchService _service;
+		private static Watchdog _dog;
 		private static AdaptiveLogHandler<LogTypes> _logHandler = new AdaptiveLogHandler<LogTypes>(Path.Combine(Paths.AppPath, "Logs"));
 
 		public static void Main(string[] args)
@@ -39,9 +40,9 @@ namespace SearchCacher
 			if (cfg is null)
 				throw new Exception("Config is invalid, fix or delete it");
 
-			Watchdog dog = new Watchdog();
-			dog.Watched += Dog_Watched;
-			dog.Init(cfg.SearchPath);
+			_dog          = new Watchdog();
+			_dog.Watched += Dog_Watched;
+			_dog.Init(cfg.SearchPath);
 
 			var builder = WebApplication.CreateBuilder(args);
 
@@ -53,7 +54,7 @@ namespace SearchCacher
 			builder.Services.AddSyncfusionBlazor();
 			builder.Services.AddSingleton<SearchService>(_service);
 
-			dog.Start();
+			_dog.Start();
 
 			var app = builder.Build();
 
@@ -74,12 +75,14 @@ namespace SearchCacher
 			app.MapBlazorHub();
 			app.MapFallbackToPage("/_Host");
 
+			// This call blocks the main thread
 			app.Run();
 
-			_service?.CleanUp();
+			_dog.Stop();
+			_service.CleanUp();
 
 			// Save the DB just in case
-			_service?.SaveDB();
+			_service.SaveDB();
 
 			_logHandler.StopHandler();
 		}
@@ -116,40 +119,39 @@ namespace SearchCacher
 
 		private static void Dog_Watched(Watchdog.WatchedEventArgs data)
 		{
-			Task.Run(() =>
+			// We block this event as the watchdog is threaded with a blocking collection
+			// and we have to do the updates one after another
+			try
 			{
-				try
+				switch (data.ChangeType)
 				{
-					switch (data.ChangeType)
+					case WatcherChangeTypes.Created:
 					{
-						case WatcherChangeTypes.Created:
-							{
-								_service.AddPath(data.FullPath);
-								break;
-							}
-						case WatcherChangeTypes.Deleted:
-							{
-								_service.DeletePath(data.FullPath);
-								break;
-							}
-						case WatcherChangeTypes.Renamed:
-							{
-								_service.UpdatePath(data.OldFullPath, data.FullPath);
-								break;
-							}
-						default:
-							{
-								Program.Log($"Got changetype: {data.ChangeType}, we do nothing in this case");
-								break;
-							}
+						_service.AddPath(data.FullPath);
+						break;
+					}
+					case WatcherChangeTypes.Deleted:
+					{
+						_service.DeletePath(data.FullPath);
+						break;
+					}
+					case WatcherChangeTypes.Renamed:
+					{
+						_service.UpdatePath(data.OldFullPath, data.FullPath);
+						break;
+					}
+					default:
+					{
+						Program.Log($"Got changetype: {data.ChangeType}, we do nothing in this case");
+						break;
 					}
 				}
-				catch (Exception ex)
-				{
-					Log(ex.ToString());
-					CryLib.Core.LibTools.ExceptionManager.AddException(ex);
-				}
-			});
+			}
+			catch (Exception ex)
+			{
+				Log(ex.ToString());
+				LibTools.ExceptionManager.AddException(ex);
+			}
 		}
 
 		private static void _CurrentDomain_UnhandledException(object sender, System.UnhandledExceptionEventArgs e)
