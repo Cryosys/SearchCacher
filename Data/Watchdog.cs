@@ -16,12 +16,12 @@ namespace SearchCacher
 		{
 		}
 
-		internal void Init(string watchpath)
+		internal void Init(string watchpath, Config config)
 		{
 			CurrentWatchPath = watchpath;
 			_watcher         = new FileSystemWatcher(CurrentWatchPath);
 			_watcher.BeginInit();
-			_watcher.Filter       = "*.*";
+			_watcher.Filter       = config.WatchDogFilter ?? "*.*";
 			_watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime | NotifyFilters.DirectoryName;
 			_watcher.Created     += Watcher_Created;
 			_watcher.Deleted     += Watcher_Deleted;

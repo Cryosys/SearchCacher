@@ -13,5 +13,11 @@ namespace SearchCacher
 
 		[JsonProperty("FileDBPath")]
 		internal string? FileDBPath { get; set; }
+
+		/// <summary>
+		/// *.* is the default filter for everything
+		/// </summary>
+		[JsonProperty("WatchDogFilter")]
+		internal string? WatchDogFilter { get; set; } = "*.*";
 	}
 }
