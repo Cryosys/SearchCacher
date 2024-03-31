@@ -42,7 +42,7 @@ namespace SearchCacher
 
 			_dog          = new Watchdog();
 			_dog.Watched += Dog_Watched;
-			_dog.Init(cfg.SearchPath);
+			_dog.Init(cfg.SearchPath, cfg);
 
 			var builder = WebApplication.CreateBuilder(args);
 
