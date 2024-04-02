@@ -582,23 +582,8 @@ namespace SearchCacher
 					if (!_IsDirty)
 						continue;
 
-					CancellationTokenSource cancelSource = new CancellationTokenSource();
-					try
-					{
-						if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
-							throw new Exception("Could not acquire master lock on file DB");
-
-						_SaveDB();
-
-						_IsDirty = false;
-
-						if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
-							throw new Exception("Could not release master lock on file DB");
-					}
-					finally
-					{
-						cancelSource.Dispose();
-					}
+					_SaveDB();
+					_IsDirty = false;
 				}
 			}
 			catch (OperationCanceledException)
@@ -616,7 +601,7 @@ namespace SearchCacher
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
 			try
 			{
-				Program.Log($"{DateTime.Now.ToString("HH:mm:ss")} Saving DB");
+				Program.Log("Saving DB");
 
 				if (!parentHasMaster)
 					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
@@ -624,19 +609,18 @@ namespace SearchCacher
 
 				using (FileStream fileStream = new FileStream(DBPath, FileMode.Create, FileAccess.ReadWrite))
 					JsonExtensions.ToCryJson(_config, fileStream);
-
+			}
+			catch (Exception ex)
+			{
+				CryLib.Core.LibTools.ExceptionManager.AddException(ex);
+			}
+			finally
+			{
 				if (!parentHasMaster)
 					if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
 						throw new Exception("Could not release master lock on file DB");
 
-				Program.Log($"{DateTime.Now.ToString("HH:mm:ss")} Saved DB");
-			}
-			catch (Exception ex)
-			{
-				Program.Log(ex.ToString());
-			}
-			finally
-			{
+				Program.Log("Saved DB");
 				cancelSource.Dispose();
 			}
 		}
