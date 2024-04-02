@@ -23,7 +23,7 @@ namespace SearchCacher
 			_logHandler.AddLog(LogTypes.Log);
 			_logHandler.StartHandler();
 
-			Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. 1.0.3.0";
+			Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. 1.0.3.1";
 
 			LibTools.ExceptionManager.ExceptionCaught += ExceptionManager_ExceptionCaught;
 			LibTools.ExceptionManager.bAllowCollection = true;
