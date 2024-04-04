@@ -46,32 +46,38 @@
                     <ContentTemplate>
                         Enabling only extensions makes the search absolut. Meaning that only the specified extension will be searched for. <br />
                         Example: You want to search for all txt files. Input only .txt in the search box, all other settings do not matter.<br />
-                        <s>
+                        @* <s>
                             The pattern is relative, meaning that '.txt' will only find a file for example that does not have a name and ends with '.txt'. Entering '*.txt' however will search for all files ending with '.txt'. <br />
                             Entering 'nua*' will search for all files and folders containing the char set 'nua' at any point in the name. Like Manual -> Ma*nua*l.
-                        </s>
+                        </s> *@
                         <br />
                         <br />
                         The search pattern is Regex based. <a href="https://regex101.com/" target="_blank">You can test and generate regex patterns here.</a><br />
                         Tl:dr; writing only a word, for example 'test' will find all paths involing this word, regardless of upper or lower case and anywhere in the path. <br />
                         It does not matter if the word has something before or after it. Writing 'subfolder*.*test' will find all paths that have at some point subfolder in it and AFTER it somewhere test. <br />
                         The search will only search in paths if you enable the option, this will take a bit more time, but not that much more.
+                        <br/>
+                        Search paths * is equal to the base path of the search: @searchService.SearchPath
                     </ContentTemplate>
                 </AccordionItem>
             </AccordionItems>
         </SfAccordion>
     </div>
+    <br/>
+
+    @* <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
+        <span style="margin-right:5px;margin-left:0px;min-width:100px">Search path:</span>
+        <SfTextBox Multiline="false" @bind-Value="data.searchPath" style="min-width:400px;width:auto" />
+    </div> *@
 
     <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
         <span style="margin-right:5px">Pattern:</span>
-        <SfTextBox Multiline="false" Placeholder="*nua*" @bind-Value="data.pattern" style="min-width:400px;width:auto" />
+        <SfTextBox Multiline="false" Placeholder="*nua*" @bind-Value="data.pattern" style="min-width:400px;width:auto" @onkeyup="@PatternTextBoxKeyUp" />
         <SfButton style="margin:5px" @onclick=Search>Search</SfButton>
         <div style="position: relative;width:50px">
             <SfSpinner Size="20" @bind-Visible="@data.IsSpinnerVisible" />
         </div>
     </div>
-
-    <a href="C:\Users\ssloo\Desktop\watch folder\subfolder" target="_blank">C:\Users\ssloo\Desktop\watch folder\subfolder</a>
 
     <SfGrid @ref="FileGrid" TValue="string" DataSource="@data.Paths" AllowPaging="true" AllowSorting="true" ContextMenuItems="@FileGridContextMenuItems">
         <GridSelectionSettings Mode="SelectionMode.Row" EnableSimpleMultiRowSelection="false"></GridSelectionSettings>
@@ -138,6 +144,9 @@
         public bool caseSensitive { get; set; } = false;
 
         [Required]
+        public string searchPath { get; set; } = "*";
+
+        [Required]
         [Range(typeof(bool), "false", "true")]
         public bool SpinnerVisible { get; set; } = false;
 
@@ -200,6 +209,7 @@
         data.Paths = data.searchTask.Result;
         data.searchTask = null;
         data.IsSpinnerVisible = false;
+        await Task.Delay(100);
         ShowToast("Finished search");
     }
 
@@ -233,5 +243,15 @@
                 copyText.Add(entry);
 
         JSRuntime.InvokeVoidAsync("copyClipboard", string.Join(";", string.Join(";", copyText)));
+    }
+
+    public async void PatternTextBoxKeyUp(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            // We have to do it like that here as it seems like that the event is not in the UI thread for whatever reason
+            await InvokeAsync(Search);
+            StateHasChanged();
+        }
     }
 }

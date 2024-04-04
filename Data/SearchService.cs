@@ -7,6 +7,8 @@ namespace SearchCacher.Data
 		static List<WeakReference<Action<string>>> currentSearchDirChangedHandlers = new List<WeakReference<Action<string>>>();
 		static object handlerLock = new object();
 
+		public string SearchPath => _cfg?.SearchPath ?? string.Empty;
+
 		private ISearcher _searchHandler;
 		private Config _cfg;
 
