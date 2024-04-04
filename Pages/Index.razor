@@ -7,6 +7,7 @@
 @using Syncfusion.Blazor.Inputs;
 @using Syncfusion.Blazor.Notifications
 @inject SearchService searchService
+@inject IJSRuntime JSRuntime
 
 <PageTitle>OnlySearch</PageTitle>
 
@@ -70,10 +71,14 @@
         </div>
     </div>
 
-    <SfGrid TValue="string" DataSource="@data.Paths" AllowPaging="true" AllowSorting="true">
+    <a href="C:\Users\ssloo\Desktop\watch folder\subfolder" target="_blank">C:\Users\ssloo\Desktop\watch folder\subfolder</a>
+
+    <SfGrid @ref="FileGrid" TValue="string" DataSource="@data.Paths" AllowPaging="true" AllowSorting="true" ContextMenuItems="@FileGridContextMenuItems">
+        <GridSelectionSettings Mode="SelectionMode.Row" EnableSimpleMultiRowSelection="false"></GridSelectionSettings>
+        <GridEvents ContextMenuItemClicked="OnContextMenuClick" TValue="string"></GridEvents>
         <GridPageSettings PageSize="50" />
         <GridColumns>
-            <GridColumn HeaderText="File">
+            <GridColumn HeaderText="File" IsPrimaryKey="true">
                 <Template>
                     @{
                         <div>@(context as string)</div>
@@ -86,6 +91,18 @@
     <br />
     Last search time @data.lastSearchTime min:sec:ms
 </div>
+
+<script>
+    async function copyClipboard(text) {
+        console.log(text);
+
+        try {
+            await navigator.clipboard.writeText(text);
+        } catch (error) {
+            console.error(error.message);
+        }
+    }
+</script>
 
 @code {
     class FormData
@@ -126,7 +143,18 @@
 
         public string? lastSearchTime { get; set; } = null;
     }
+
     FormData data = new FormData();
+
+    private SfGrid<string> FileGrid;
+
+    List<object> FileGridContextMenuItems = new()
+    {
+        new ContextMenuItemModel() { Text = "Copy filename", Target = ".e-content", Id = "copyfilename" },
+        new ContextMenuItemModel() { Text = "Copy folderpath", Target = ".e-content", Id = "copyfolderpath" },
+        new ContextMenuItemModel() { Text = "Copy path", Target = ".e-content", Id = "copypath" },
+        new ContextMenuItemModel() { Text = "Open in Explorer", Target = ".e-content", Id = "openinexplorer" },
+    };
 
     protected async Task Search()
     {
@@ -182,5 +210,45 @@
                 Content = info,
                 Timeout = timeout
             });
+    }
+
+    private void selectedHandler(MenuEventArgs<MenuItem> args)
+    {
+        try
+        {
+            if (args.Item.Text == "Copy filename")
+                JSRuntime.InvokeVoidAsync("copyClipboard", args.Item.Url);
+            else if (args.Item.Text == "Copy folderpath")
+                JSRuntime.InvokeVoidAsync("copyClipboard", args.Item.Url);
+            else if (args.Item.Text == "Copy path")
+                JSRuntime.InvokeVoidAsync("copyClipboard", args.Item.Url);
+        }
+        catch (System.Exception ex)
+        {
+            ShowToast(ex.ToString(), int.MaxValue);
+        }
+    }
+
+    public void OnContextMenuClick(ContextMenuClickEventArgs<string> args)
+    {
+        var selectionTask = FileGrid.GetSelectedRecordsAsync();
+        if (!selectionTask.Wait(5000))
+        {
+            ShowToast("Failed to copy to clipboard");
+            return;
+        }
+
+        var entries = selectionTask.Result;
+        List<string> copyText = new List<string>();
+
+        foreach (var entry in entries)
+            if (args.Item.Id == "copyfilename")
+                copyText.Add(Path.GetFileName(entry));
+            else if (args.Item.Id == "copyfolderpath")
+                copyText.Add(Path.GetDirectoryName(entry));
+            else if (args.Item.Id == "copypath")
+                copyText.Add(entry);
+
+        JSRuntime.InvokeVoidAsync("copyClipboard", string.Join(";", string.Join(";", copyText)));
     }
 }
