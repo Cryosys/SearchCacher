@@ -212,23 +212,6 @@
             });
     }
 
-    private void selectedHandler(MenuEventArgs<MenuItem> args)
-    {
-        try
-        {
-            if (args.Item.Text == "Copy filename")
-                JSRuntime.InvokeVoidAsync("copyClipboard", args.Item.Url);
-            else if (args.Item.Text == "Copy folderpath")
-                JSRuntime.InvokeVoidAsync("copyClipboard", args.Item.Url);
-            else if (args.Item.Text == "Copy path")
-                JSRuntime.InvokeVoidAsync("copyClipboard", args.Item.Url);
-        }
-        catch (System.Exception ex)
-        {
-            ShowToast(ex.ToString(), int.MaxValue);
-        }
-    }
-
     public void OnContextMenuClick(ContextMenuClickEventArgs<string> args)
     {
         var selectionTask = FileGrid.GetSelectedRecordsAsync();
