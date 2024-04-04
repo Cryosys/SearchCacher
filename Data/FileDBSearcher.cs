@@ -268,13 +268,6 @@ namespace SearchCacher
 			bool acquiredLock                    = false;
 			try
 			{
-				if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
-					throw new Exception("Could not acquire master lock on file DB");
-
-				string subPath         = oldPath.Replace(_config.RootPath, "");
-				string[] pathSplits    = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
-				string[] newPathSplits = newPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
-
 				// Has to be the new path as the old folder or file does not exist anymore at this point
 				bool isFile = false;
 
@@ -288,6 +281,27 @@ namespace SearchCacher
 					// At this point we just return and assume everything is fine
 					return;
 				}
+
+				// First we need to check if the old path and new path match as a file.
+				// It can happen that the old path provided by the watchdog is invalid as the file was renamed on creation.
+				// In this case we do not need to do anything as a event would preceed this one
+				// We can simply check it by subtracting the new paths folder path and the old paths folder path, if the resulting path is empty we know that it was a faulty event.
+				{
+					string newDirPath = Path.GetDirectoryName(newPath) ?? string.Empty;
+					if (!newDirPath.EndsWith("\\"))
+						newDirPath += "\\";
+
+					if (string.IsNullOrWhiteSpace(oldPath.Replace(newDirPath, "")))
+						return;
+				}
+
+				string subPath         = oldPath.Replace(_config.RootPath, "");
+				string[] pathSplits    = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
+				string[] newPathSplits = newPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
+
+				// We can do everything else above as it does not concern the DB
+				if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
+					throw new Exception("Could not acquire master lock on file DB");
 
 				Dir curDir = _DB;
 
@@ -313,6 +327,8 @@ namespace SearchCacher
 						}
 					}
 				}
+
+				string lastSplit = newPathSplits.LastOrDefault() ?? newPath;
 
 				if (isFile)
 				{
@@ -672,10 +688,10 @@ namespace SearchCacher
 		}
 
 		[JsonProperty("Directories")]
-		internal Dir[] Directories = { };
+		internal Dir[] Directories = Array.Empty<Dir>();
 
 		[JsonProperty("Files")]
-		internal File[] Files = { };
+		internal File[] Files = Array.Empty<File>();
 
 		[JsonProperty("Parent")]
 		internal Dir? Parent;
