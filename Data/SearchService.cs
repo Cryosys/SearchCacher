@@ -22,7 +22,7 @@ namespace SearchCacher.Data
 			_searchHandler.StartAutoSave();
 		}
 
-		internal Task<string?[]> GetSearchResult(SearchSettings settings) => Task.FromResult(_searchHandler.Search(settings));
+		internal Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings) => Task.FromResult(_searchHandler.Search(settings));
 
 		internal Task InitDB() => _searchHandler.InitDB(_cfg.SearchPath);
 

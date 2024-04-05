@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using SearchCacher.Tools;
+using Syncfusion.Blazor.DataVizCommon;
 using System.Text.RegularExpressions;
 
 namespace SearchCacher
@@ -12,7 +13,7 @@ namespace SearchCacher
 
 		public Task InitDB(string path);
 
-		public string?[] Search(SearchSettings settings);
+		public SearchResult Search(SearchSettings settings);
 
 		public void AddPath(string path);
 
@@ -25,6 +26,22 @@ namespace SearchCacher
 		public virtual void StopAutoSave() { }
 
 		public virtual void SaveDB() { }
+
+		public struct SearchResult
+		{
+			public bool Success { get; }
+
+			public string[] Result { get; }
+
+			public string Error { get; }
+
+			public SearchResult(bool success, string[] result, string error = "")
+			{
+				Success = success;
+				Result  = result;
+				Error   = error;
+			}
+		}
 	}
 
 	internal class FileDBSearcher : ISearcher
@@ -446,7 +463,7 @@ namespace SearchCacher
 			}
 		}
 
-		public string?[] Search(SearchSettings settings)
+		public ISearcher.SearchResult Search(SearchSettings settings)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
 			try
@@ -454,13 +471,35 @@ namespace SearchCacher
 				if (!_dbLock.RequestMultiLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not acquire multi lock on file DB");
 
-				Program.Log(settings.Pattern);
+				Program.Log($"search path: {settings}; pattern: {settings.Pattern}");
 				List<List<string>> results = new List<List<string>>();
-				Task[] searchTasks         = new Task[_DB.Directories.Length];
 
-				for (int i = 0; i < _DB.Directories.Length; i++)
+				Dir baseSearchDir = _DB;
+
+				if (settings.SearchPath != "*")
 				{
-					Dir dir = _DB.Directories[i];
+					// Search for the directory mentioned in the search settings
+					string subPath      = settings.SearchPath.Replace(_config.RootPath, "");
+					string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
+					int searchDepth     = pathSplits.Length;
+					Dir? fittingDir;
+					for (int i = 0; i < searchDepth; i++)
+					{
+						if ((fittingDir = baseSearchDir.Directories.FirstOrDefault(dir => dir.Name == pathSplits[i])) != null)
+						{
+							baseSearchDir = fittingDir;
+							continue;
+						}
+						else
+							return new ISearcher.SearchResult(false, Array.Empty<string>(), "Could not find base search path");
+					}
+				}
+
+				Task[] searchTasks = new Task[baseSearchDir.Directories.Length];
+
+				for (int i = 0; i < baseSearchDir.Directories.Length; i++)
+				{
+					Dir dir = baseSearchDir.Directories[i];
 					results.Add(new List<string>());
 					Task searchTask = new Task(delegate(object? val)
 					{
@@ -474,7 +513,7 @@ namespace SearchCacher
 				List<string> dbResults = new List<string>();
 
 				if (settings.SearchDirs)
-					foreach (var dir in _DB.Directories)
+					foreach (var dir in baseSearchDir.Directories)
 					{
 						if (settings.SearchOnFullPath)
 						{
@@ -486,7 +525,7 @@ namespace SearchCacher
 					}
 
 				if (settings.SearchFiles)
-					foreach (var file in _DB.Files)
+					foreach (var file in baseSearchDir.Files)
 					{
 						if (settings.SearchOnlyFileExt && file.Extension == settings.Pattern)
 						{
@@ -514,7 +553,7 @@ namespace SearchCacher
 				foreach (var result in results)
 					combinedList.AddRange(result);
 
-				return combinedList.ToArray();
+				return new ISearcher.SearchResult(true, combinedList.ToArray());
 			}
 			finally
 			{

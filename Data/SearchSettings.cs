@@ -14,7 +14,9 @@
 
 		public bool CaseSensitive = false;
 
-		public SearchSettings(string pattern = "*.*", bool searchOnlyFileExt = false, bool searchDirs = true, bool searchFiles = true, bool searchOnFullPath = false, bool caseSensitive = false)
+		public string SearchPath = "*";
+
+		public SearchSettings(string pattern = "*.*", bool searchOnlyFileExt = false, bool searchDirs = true, bool searchFiles = true, bool searchOnFullPath = false, bool caseSensitive = false, string searchPath = "*")
 		{
 			Pattern           = pattern;
 			SearchOnlyFileExt = searchOnlyFileExt;
@@ -22,6 +24,7 @@
 			SearchFiles       = searchFiles;
 			SearchOnFullPath  = searchOnFullPath;
 			CaseSensitive     = caseSensitive;
+			SearchPath        = searchPath;
 		}
 	}
 }

@@ -100,7 +100,7 @@ namespace SearchCacher
 		{
 		}
 
-		public string?[] Search(SearchSettings settings)
+		public ISearcher.SearchResult Search(SearchSettings settings)
 		{
 			List<string?> results = new List<string?>();
 
@@ -109,9 +109,9 @@ namespace SearchCacher
 				if (settings.SearchOnlyFileExt)
 				{
 					if (!_dbInterface.KeyExists(settings.Pattern))
-						return Array.Empty<string>();
+						return new ISearcher.SearchResult(true, Array.Empty<string>());
 
-					return _dbInterface.SMEMBERS(settings.Pattern);
+					return new ISearcher.SearchResult(true, _dbInterface.SMEMBERS(settings.Pattern));
 				}
 
 				List<Task<string?[]>[]> searchQueries = new List<Task<string?[]>[]>();
@@ -147,7 +147,7 @@ namespace SearchCacher
 				}
 			}
 
-			return results.ToArray();	// _dbInterface.SCAN(settings.Pattern).Select(key => key.ToString()).ToArray();
+			return new ISearcher.SearchResult(true, results.ToArray());	// _dbInterface.SCAN(settings.Pattern).Select(key => key.ToString()).ToArray();
 		}
 
 		private Task<string?[]>[] _Search(List<RedisKey> keys, string pattern)
