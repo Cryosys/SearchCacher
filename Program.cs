@@ -32,6 +32,7 @@ namespace SearchCacher
 			if (!System.IO.File.Exists(ConfigPath))
 			{
 				System.IO.File.WriteAllText(ConfigPath, new Config().ToCryJson());
+				_logHandler.StopHandler();
 				return;
 			}
 
