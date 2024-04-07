@@ -17,9 +17,11 @@ namespace SearchCacher.Data
 			_cfg = cfg;
 
 			// _searchHandler                   = new SearchHandler(_cfg.ConnectionString);
-			_searchHandler                   = new FileDBSearcher(_cfg.FileDBPath ?? Path.Combine(CryLib.Core.Paths.ExecuterPath, "fileDB"));
+			_searchHandler                   = new FileDBSearcher(_cfg.FileDBPath ?? Path.Combine(CryLib.Core.Paths.ExecuterPath, "fileDB"), cfg.AutoSaveInterval);
 			_searchHandler.CurrentSearchDir += _searchHandler_CurrentSearchDir;
-			_searchHandler.StartAutoSave();
+
+			if (cfg.AutoSaveEnabled)
+				_searchHandler.StartAutoSave();
 		}
 
 		internal Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings) => Task.FromResult(_searchHandler.Search(settings));

@@ -7,24 +7,52 @@ namespace SearchCacher
 {
 	internal interface ISearcher
 	{
+		/// <summary>	Event queue for all listeners interested in CurrentSearchDir events. </summary>
+		/// <seealso cref="FileDBSearcher.CurrentSearchDir"/>
 		public event Action<string>? CurrentSearchDir;
 
+		/// <summary>	Deletes the database. </summary>
+		/// <seealso cref="FileDBSearcher.DelDB"/>
 		public void DelDB();
 
+		/// <summary>   Initializes the database. </summary>
+		/// <param name="path"> Full path of the search folder. </param>
+		/// <returns>   The init Task. </returns>
+		/// <seealso cref="FileDBSearcher.InitDB(string)"/>
 		public Task InitDB(string path);
 
+		/// <summary>   Searches for all matches for the given search settings. </summary>
+		/// <param name="settings"> Options for controlling the operation. </param>
+		/// <returns>   The search result. </returns>
+		/// <seealso cref="FileDBSearcher.Search(SearchSettings)"/>
 		public SearchResult Search(SearchSettings settings);
 
+		/// <summary>   Adds a path. </summary>
+		/// <param name="path"> Full path to add. </param>
+		/// <seealso cref="FileDBSearcher.AddPath(string)"/>
 		public void AddPath(string path);
 
+		/// <summary>   Updates the path. </summary>
+		/// <param name="oldPath"> Full path of the old folder/file. </param>
+		/// <param name="newPath"> Full path of the new folder/file. </param>
+		/// <seealso cref="FileDBSearcher.UpdatePath(string, string)"/>
 		public void UpdatePath(string oldPath, string newPath);
 
+		/// <summary>   Deletes the path. </summary>
+		/// <param name="path"> Full path to remove. </param>
+		/// <seealso cref="FileDBSearcher.DeletePath(string)"/>
 		public void DeletePath(string path);
 
+		/// <summary>   Starts automatic save if applicable to the DB type. </summary>
+		/// <seealso cref="FileDBSearcher.StartAutoSave"/>
 		public virtual void StartAutoSave() { }
 
+		/// <summary>   Stops automatic save if applicable to the DB type. </summary>
+		/// <seealso cref="FileDBSearcher.StopAutoSave"/>
 		public virtual void StopAutoSave() { }
 
+		/// <summary>   Saves the DB if applicable to the DB type. </summary>
+		/// <seealso cref="FileDBSearcher.SaveDB"/>
 		public virtual void SaveDB() { }
 
 		public struct SearchResult
@@ -58,12 +86,14 @@ namespace SearchCacher
 		private Thread? _autosaveThread;
 		private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
 		private readonly object _autosaveLock                    = new object();
+		private int _autoSaveInterval;
 
 		private bool _IsDirty = false;
 
-		public FileDBSearcher(string dbPath)
+		public FileDBSearcher(string dbPath, int autoSaveInterval = 5)
 		{
-			DBPath = dbPath;
+			DBPath            = dbPath;
+			_autoSaveInterval = autoSaveInterval;
 
 			if (System.IO.File.Exists(DBPath))
 			{
@@ -642,9 +672,11 @@ namespace SearchCacher
 				if (_autosaveThread is null)
 					return;
 
-				_cancellationTokenSource.Cancel();
+				if (!_cancellationTokenSource.IsCancellationRequested)
+					_cancellationTokenSource.Cancel();
 
 				_autosaveThread.Join();
+				_autosaveThread = null;
 			}
 		}
 
@@ -656,7 +688,7 @@ namespace SearchCacher
 			{
 				while (!_cancellationTokenSource.IsCancellationRequested)
 				{
-					Task.Delay(TimeSpan.FromMinutes(5), _cancellationTokenSource.Token).Wait(_cancellationTokenSource.Token);
+					Task.Delay(TimeSpan.FromMinutes(_autoSaveInterval), _cancellationTokenSource.Token).Wait(_cancellationTokenSource.Token);
 
 					if (!_IsDirty)
 						continue;
