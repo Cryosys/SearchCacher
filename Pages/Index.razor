@@ -70,9 +70,9 @@
 
     <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
         <span style="margin-right:5px;width:auto;white-space:nowrap">Search path:</span>
-        <SfTextBox Multiline="false" @bind-Value="data.searchPath" style="min-width:400px" @onkeyup="@PatternTextBoxKeyUp"/>
+        <SfTextBox Multiline="false" @bind-Value="data.searchPath" style="min-width:400px" @onkeyup="@PatternTextBoxKeyUp" />
         <span style="margin-left:5px;margin-right:5px">Pattern:</span>
-        <SfTextBox Multiline="false" Placeholder="*nua*" @bind-Value="data.pattern" style="min-width:400px" @onkeyup="@PatternTextBoxKeyUp"/>
+        <SfTextBox Multiline="false" Placeholder="*nua*" @bind-Value="data.pattern" style="min-width:400px" @onkeyup="@PatternTextBoxKeyUp" />
         <SfButton style="margin:5px" @onclick=Search>Search</SfButton>
         <div style="position:relative;width:50px;margin:5px">
             <SfSpinner Size="20" @bind-Visible="@data.IsSpinnerVisible" />
@@ -162,7 +162,7 @@
         new ContextMenuItemModel() { Text = "Copy filename", Target = ".e-content", Id = "copyfilename" },
         new ContextMenuItemModel() { Text = "Copy folderpath", Target = ".e-content", Id = "copyfolderpath" },
         new ContextMenuItemModel() { Text = "Copy path", Target = ".e-content", Id = "copypath" },
-        new ContextMenuItemModel() { Text = "Open in Explorer", Target = ".e-content", Id = "openinexplorer" },
+        new ContextMenuItemModel() { Text = "Search in path", Target = ".e-content", Id = "searchinpath" },
     };
 
     protected async Task Search()
@@ -241,15 +241,33 @@
         }
 
         var entries = selectionTask.Result;
+        if(entries.Count == 0)
+        {
+            ShowToast("Somehow no path was selected in the grid, please try again...");
+            return;
+        }
+
         List<string> copyText = new List<string>();
 
-        foreach (var entry in entries)
-            if (args.Item.Id == "copyfilename")
-                copyText.Add(Path.GetFileName(entry));
-            else if (args.Item.Id == "copyfolderpath")
-                copyText.Add(Path.GetDirectoryName(entry));
-            else if (args.Item.Id == "copypath")
-                copyText.Add(entry);
+        if (args.Item.Id == "searchinpath")
+        {
+            if(entries.Count > 1)
+            {
+                // We do not know which path is the desired search path
+                ShowToast("More than 1 path is selected, please only select one in order to use it as the search path");
+                return;
+            }
+
+            data.searchPath = Path.GetDirectoryName(entries.First()) ?? "";
+        }
+        else
+            foreach (var entry in entries)
+                if (args.Item.Id == "copyfilename")
+                    copyText.Add(Path.GetFileName(entry));
+                else if (args.Item.Id == "copyfolderpath")
+                    copyText.Add(Path.GetDirectoryName(entry));
+                else if (args.Item.Id == "copypath")
+                    copyText.Add(entry);
 
         JSRuntime.InvokeVoidAsync("copyClipboard", string.Join(";", string.Join(";", copyText)));
     }

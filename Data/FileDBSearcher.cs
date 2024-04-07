@@ -518,10 +518,22 @@ namespace SearchCacher
 						if (settings.SearchOnFullPath)
 						{
 							if (Regex.IsMatch(dir.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-								dbResults.Add(dir.FullPath);
+							{
+								string fullPath = dir.FullPath;
+								if (!fullPath.EndsWith("\\"))
+									fullPath += "\\";
+
+								dbResults.Add(fullPath);
+							}
 						}
 						else if (Regex.IsMatch(dir.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-							dbResults.Add(dir.FullPath);
+						{
+							string fullPath = dir.FullPath;
+							if (!fullPath.EndsWith("\\"))
+								fullPath += "\\";
+
+							dbResults.Add(fullPath);
+						}
 					}
 
 				if (settings.SearchFiles)
@@ -568,10 +580,22 @@ namespace SearchCacher
 						if (settings.SearchOnFullPath)
 						{
 							if (Regex.IsMatch(dir.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-								foundFiles.Add(dir.FullPath);
+							{
+								string fullPath = dir.FullPath;
+								if (!fullPath.EndsWith("\\"))
+									fullPath += "\\";
+
+								foundFiles.Add(fullPath);
+							}
 						}
 						else if (Regex.IsMatch(dir.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-							foundFiles.Add(dir.FullPath);
+						{
+							string fullPath = dir.FullPath;
+							if (!fullPath.EndsWith("\\"))
+								fullPath += "\\";
+
+							foundFiles.Add(fullPath);
+						}
 
 					RecursiveSearch(dir, foundFiles);
 				}
