@@ -2,3 +2,4 @@
 **/obj/
 **/Properties/PublishProfiles/
 .vs/
+*/SearchCacher.csproj.user
