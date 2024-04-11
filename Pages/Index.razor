@@ -79,7 +79,7 @@
         </div>
     </div>
 
-    <SfGrid @ref="FileGrid" TValue="string" DataSource="@data.Paths" AllowSorting="true" ContextMenuItems="@FileGridContextMenuItems" EnableVirtualization="true" EnableInfiniteScrolling="true" Height="800">
+    <SfGrid @ref="FileGrid" TValue="string" DataSource="@data.Paths" AllowSorting="true" ContextMenuItems="@FileGridContextMenuItems" EnableVirtualization="true" Height="800">
         <GridSelectionSettings Mode="SelectionMode.Row" EnableSimpleMultiRowSelection="false"></GridSelectionSettings>
         <GridEvents ContextMenuItemClicked="OnContextMenuClick" TValue="string"></GridEvents>
         <GridColumns>
