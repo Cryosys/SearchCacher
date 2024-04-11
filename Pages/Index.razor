@@ -79,10 +79,9 @@
         </div>
     </div>
 
-    <SfGrid @ref="FileGrid" TValue="string" DataSource="@data.Paths" AllowPaging="true" AllowSorting="true" ContextMenuItems="@FileGridContextMenuItems">
+    <SfGrid @ref="FileGrid" TValue="string" DataSource="@data.Paths" AllowSorting="true" ContextMenuItems="@FileGridContextMenuItems" EnableVirtualization="true" EnableInfiniteScrolling="true" Height="800">
         <GridSelectionSettings Mode="SelectionMode.Row" EnableSimpleMultiRowSelection="false"></GridSelectionSettings>
         <GridEvents ContextMenuItemClicked="OnContextMenuClick" TValue="string"></GridEvents>
-        <GridPageSettings PageSize="50" />
         <GridColumns>
             <GridColumn HeaderText="File" IsPrimaryKey="true">
                 <Template>
@@ -169,13 +168,13 @@
     {
         if (data.searchTask is not null)
         {
-            ShowToast("Previous search is still in progress...");
+            ShowToast("Previous search is still in progress...", 10000);
             return;
         }
 
         if (string.IsNullOrWhiteSpace(data.pattern))
         {
-            ShowToast("Empty search pattern is not allowed.");
+            ShowToast("Empty search pattern is not allowed.", 10000);
             return;
         }
 
@@ -186,7 +185,7 @@
         }
         catch (ArgumentException)
         {
-            ShowToast("Pattern is not a valid regex pattern");
+            ShowToast("Pattern is not a valid regex pattern", 10000);
             return;
         }
 
@@ -201,28 +200,25 @@
         if (data.searchTask.Status != TaskStatus.RanToCompletion)
         {
             await Task.Delay(100);
-            ShowToast("Failed to complete search. Ex: " + data.searchTask.Exception?.ToString());
+            ShowToast("Failed to complete search. Ex: " + data.searchTask.Exception?.ToString(), 10000);
             return;
         }
-
-        data.lastSearchTime = (DateTime.Now - preSearch).ToString(@"mm\:ss\:ffff", new System.Globalization.CultureInfo("en-US"));
 
         ISearcher.SearchResult result = data.searchTask.Result;
-        if (!result.Success)
-        {
-            await Task.Delay(100);
-            ShowToast(result.Error);
-            return;
-        }
 
+        data.lastSearchTime = (DateTime.Now - preSearch).ToString(@"mm\:ss\:ffff", new System.Globalization.CultureInfo("en-US"));
+        data.IsSpinnerVisible = false;
         data.Paths = result.Result;
         data.searchTask = null;
-        data.IsSpinnerVisible = false;
+
         await Task.Delay(100);
-        ShowToast("Finished search");
+        if (!result.Success)
+            ShowToast(result.Error, 10000);
+        else
+            ShowToast("Finished search");
     }
 
-    protected async void ShowToast(string info, int timeout = 2500)
+    protected async void ShowToast(string info, int timeout = 5000)
     {
         await this.data.ToastObj.ShowAsync(new ToastModel()
             {
@@ -241,7 +237,7 @@
         }
 
         var entries = selectionTask.Result;
-        if(entries.Count == 0)
+        if (entries.Count == 0)
         {
             ShowToast("Somehow no path was selected in the grid, please try again...");
             return;
@@ -251,7 +247,7 @@
 
         if (args.Item.Id == "searchinpath")
         {
-            if(entries.Count > 1)
+            if (entries.Count > 1)
             {
                 // We do not know which path is the desired search path
                 ShowToast("More than 1 path is selected, please only select one in order to use it as the search path");

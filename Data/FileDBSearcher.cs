@@ -496,13 +496,15 @@ namespace SearchCacher
 		public ISearcher.SearchResult Search(SearchSettings settings)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			List<List<string>> results           = new List<List<string>>();
+			List<string> dbResults               = new List<string>();
+
 			try
 			{
 				if (!_dbLock.RequestMultiLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not acquire multi lock on file DB");
 
 				Program.Log($"search path: {settings}; pattern: {settings.Pattern}");
-				List<List<string>> results = new List<List<string>>();
 
 				Dir baseSearchDir = _DB;
 
@@ -539,8 +541,6 @@ namespace SearchCacher
 					searchTask.Start();
 					searchTasks[i] = searchTask;
 				}
-
-				List<string> dbResults = new List<string>();
 
 				if (settings.SearchDirs)
 					foreach (var dir in baseSearchDir.Directories)
@@ -585,22 +585,22 @@ namespace SearchCacher
 					}
 
 				Task.WaitAll(searchTasks, TimeSpan.FromMinutes(3));
-
-				if (!_dbLock.ReleaseMultiLockAsync(cancelSource.Token).Result)
-					throw new Exception("Could not release master lock on file DB");
-
-				results.Add(dbResults);
-
-				List<string> combinedList = new List<string>();
-				foreach (var result in results)
-					combinedList.AddRange(result);
-
-				return new ISearcher.SearchResult(true, combinedList.ToArray());
 			}
 			finally
 			{
+				if (!_dbLock.ReleaseMultiLockAsync(cancelSource.Token).Result)
+					throw new Exception("Could not release master lock on file DB");
+
 				cancelSource.Dispose();
 			}
+
+			results.Add(dbResults);
+
+			List<string> combinedList = new List<string>();
+			foreach (var result in results)
+				combinedList.AddRange(result);
+
+			return new ISearcher.SearchResult(true, combinedList.ToArray());
 
 			void RecursiveSearch(Dir curDir, List<string> foundFiles)
 			{
