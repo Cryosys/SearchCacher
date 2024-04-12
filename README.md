@@ -11,6 +11,12 @@
 
 # Startup
  On Windows:
- - Create a but file with following command, alter the port how you like: start SearchCacher.exe --urls http://*:80
+ - Create a bat file with following command, alter the port how you like: start SearchCacher.exe --urls http://*:80
  - Open Windows firewall (only if the app should be accessed via network)
   - Add the SearchCacher.exe to the allowed apps in the network
+ - The app will close automatically after the first open, which creates the config.cfg in the root folder
+  - Open the config.cfg file and change at least the SearchPath to the desired folder/drive
+   - Allowed values: \\\\network path\\some folder or D:\\some folder. Json requires all \ to be escaped with another \ -> \\
+ - Run the bat file again
+ - Now open a browser and enter either http://127.0.0.1 or your remote ip for the search
+ - Go to Settings and click on Init. Init will run for quite a while depending on how large the storage is
