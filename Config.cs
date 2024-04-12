@@ -38,5 +38,13 @@ namespace SearchCacher
 
 		[JsonProperty("AutoSaveInterval")]
 		internal int AutoSaveInterval { get; set; } = 5;
+
+		/// <summary>   Gets or sets the username for a network share. Can include a domain if written like domain\username </summary>
+		[JsonProperty("UserName")]
+		internal string UserName { get; set; } = "";
+
+		/// <summary>   Gets or sets the password for a network share. </summary>
+		[JsonProperty("Password")]
+		internal string Password { get; set; } = "";
 	}
 }

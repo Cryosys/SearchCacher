@@ -1,6 +1,8 @@
 using CryLib.Core;
 using SearchCacher.Data;
 using Syncfusion.Blazor;
+using Syncfusion.Blazor.RichTextEditor;
+using System.Net;
 using System.Reflection;
 
 namespace SearchCacher
@@ -40,6 +42,29 @@ namespace SearchCacher
 
 			if (cfg is null)
 				throw new Exception("Config is invalid, fix or delete it");
+
+			if (string.IsNullOrWhiteSpace(cfg.SearchPath))
+			{
+				Log("Config.cfg SearchPath has to be filled with a valid path");
+				_logHandler.StopHandler();
+				return;
+			}
+
+			NetworkShareConnector? shareConnector = null;
+
+			if (!string.IsNullOrWhiteSpace(cfg.UserName))
+			{
+				// Split the domain and username
+				string[] usernameSplit = cfg.UserName.Split(@"\", StringSplitOptions.RemoveEmptyEntries);
+				if (usernameSplit.Length == 1)
+					// In case there is not domain we use an empty string
+					usernameSplit = new string[] { "", usernameSplit[0] };
+
+				NetworkCredential xCred = new NetworkCredential(usernameSplit[1], cfg.Password, usernameSplit[0]);
+
+				shareConnector = new NetworkShareConnector(cfg.SearchPath, xCred);
+				_              = Directory.GetDirectories(cfg.SearchPath);
+			}
 
 			_dog          = new Watchdog();
 			_dog.Watched += Dog_Watched;
@@ -85,6 +110,7 @@ namespace SearchCacher
 			// Save the DB just in case
 			_service.SaveDB();
 
+			shareConnector?.Dispose();
 			_logHandler.StopHandler();
 		}
 
