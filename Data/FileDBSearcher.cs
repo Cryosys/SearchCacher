@@ -84,8 +84,8 @@ namespace SearchCacher
 		private readonly MultiLock _dbLock = new MultiLock();
 
 		private Thread? _autosaveThread;
-		private CancellationTokenSource _cancellationTokenSource = new CancellationTokenSource();
-		private readonly object _autosaveLock                    = new object();
+		private CancellationTokenSource _autosaveCancellationTokenSource = new CancellationTokenSource();
+		private readonly object _autosaveLock = new object();
 		private int _autoSaveInterval;
 
 		private bool _IsDirty = false;
@@ -171,51 +171,139 @@ namespace SearchCacher
 		{
 			return Task.Run(() =>
 			{
+				DateTime preStartTime = DateTime.Now;
+
 				// Initiate the dir with no parent
-				CancellationTokenSource cancelSource = new CancellationTokenSource();
+				CancellationTokenSource masterLockCancelSource = new CancellationTokenSource();
+				CancellationTokenSource initCancelSource       = new CancellationTokenSource();
 				try
 				{
 					Program.Log("Starting init");
 
-					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+					if (!_dbLock.RequestMasterLockAsync(masterLockCancelSource.Token).Result)
 						throw new Exception("Could not acquire master lock on file DB");
 
 					_config = new FileDBConfig(path, new Dir(path, null));
 					_DB     = _config.DB;
 
-					Recursive(path, _DB);
+					string[] baseDirPaths = Directory.GetDirectories(path);
+					List<Task> tasks      = new List<Task>();
+					List<Dir> baseDirs    = new List<Dir>();
+
+					// Here we do some simple threading where we can check multiple directories at the same time
+					// This does not consider that the root may contain only 1 folder and then splits
+					for (int i = 0; i < baseDirPaths.Length; i++)
+					{
+						string? dirName = new DirectoryInfo(baseDirPaths[i]).Name;
+						if (string.IsNullOrWhiteSpace(dirName))
+						{
+							// In this case we do not create a path for this directory and just mark it as finished, but never add it to the final dirs.
+							continue;
+						}
+
+						Dir dir = new Dir(dirName, _DB);
+						tasks.Add(new Task(delegate(object? val)
+						{
+							try
+							{
+								(int index, Dir tmpDir) = (Tuple<int, Dir>)val;
+								Recursive(baseDirPaths[index], tmpDir, initCancelSource.Token);
+							}
+							catch (Exception ex)
+							{
+								CryLib.Core.LibTools.ExceptionManager.AddException(ex);
+								throw;
+							}
+						}, new Tuple<int, Dir>(i, dir)));
+						baseDirs.Add(dir);
+					}
+
+					foreach (Task task in tasks)
+						task.Start();
+
+					try
+					{
+						// Before we wait for the tasks we can do some work in this thread and check the files in the base directory
+						// Now we form the actual DB
+						_DB.Directories = baseDirs.ToArray();
+
+						string[] innerFiles = Directory.GetFiles(path);
+						_DB.Files           = new File[innerFiles.Length];
+						string file;
+
+						for (int i = 0; i < innerFiles.Length; i++)
+						{
+							file             = innerFiles[i];
+							string? fileName = Path.GetFileName(file);
+							if (string.IsNullOrWhiteSpace(fileName))
+								continue;
+
+							File fileEntry = new File(fileName, _DB);
+							_DB.Files[i]   = fileEntry;
+						}
+					}
+					catch (Exception ex)
+					{
+						CryLib.Core.LibTools.ExceptionManager.AddException(ex);
+						initCancelSource.Cancel();
+
+						// We still have to await the cancel.
+						// We give it a hard stop time, it should never get to this as the process to check for the cancel should be rather fast.
+						Task.WaitAll(tasks.ToArray(), 60000);
+						throw;
+					}
+
+					Task.WaitAll(tasks.ToArray(), initCancelSource.Token);
 					_SaveDB(true);
-
-					if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
-						throw new Exception("Could not release master lock on file DB");
-
-					Program.Log("Finished init");
+				}
+				catch (Exception ex)
+				{
+					CryLib.Core.LibTools.ExceptionManager.AddException(ex);
+					throw;
 				}
 				finally
 				{
-					cancelSource.Dispose();
+					if (!_dbLock.ReleaseMasterLockAsync(masterLockCancelSource.Token).Result)
+						throw new Exception("Could not release master lock on file DB");
+
+					Program.Log("Finished init");
+					masterLockCancelSource.Dispose();
+					initCancelSource.Dispose();
+
+					Program.Log("DB init took: " + (DateTime.Now - preStartTime).ToString("g"));
 				}
 			});
 
-			void Recursive(string newPath, Dir parentDir)
+			void Recursive(string newPath, Dir parentDir, CancellationToken cancelToken)
 			{
+				if (cancelToken.IsCancellationRequested)
+					return;
+
 				CurrentSearchDir?.Invoke(newPath);
 				string[] innerDirs = Directory.GetDirectories(newPath);
+				List<Dir> dirs     = new List<Dir>();
 				parentDir.Directories = new Dir[innerDirs.Length];
 				string dir;
 
 				for (int i = 0; i < innerDirs.Length; i++)
 				{
-					dir = innerDirs[i];
-					string? dirName = new DirectoryInfo(dir).Name;
-					if (string.IsNullOrWhiteSpace(dirName))
-						continue;
+					// Accessing the directory may fail as we cannot guaranty that the directory will still exist once we get to cache it
+					try
+					{
+						dir = innerDirs[i];
+						string? dirName = new DirectoryInfo(dir).Name;
+						if (string.IsNullOrWhiteSpace(dirName))
+							continue;
 
-					Dir dirEntry = new Dir(dirName, parentDir);
-					parentDir.Directories[i] = dirEntry;
+						Dir dirEntry = new Dir(dirName, parentDir);
+						dirs.Add(dirEntry);
 
-					Recursive(dir, dirEntry);
+						Recursive(dir, dirEntry, cancelToken);
+					}
+					catch { }
 				}
+
+				parentDir.Directories = dirs.ToArray();
 
 				string[] innerFiles = Directory.GetFiles(newPath);
 				parentDir.Files = new File[innerFiles.Length];
@@ -657,8 +745,8 @@ namespace SearchCacher
 				if (_autosaveThread is not null)
 					return;
 
-				if (!_cancellationTokenSource.TryReset())
-					_cancellationTokenSource = new CancellationTokenSource();
+				if (!_autosaveCancellationTokenSource.TryReset())
+					_autosaveCancellationTokenSource = new CancellationTokenSource();
 
 				_autosaveThread = new Thread(_AutoSave);
 				_autosaveThread.Start();
@@ -672,8 +760,8 @@ namespace SearchCacher
 				if (_autosaveThread is null)
 					return;
 
-				if (!_cancellationTokenSource.IsCancellationRequested)
-					_cancellationTokenSource.Cancel();
+				if (!_autosaveCancellationTokenSource.IsCancellationRequested)
+					_autosaveCancellationTokenSource.Cancel();
 
 				_autosaveThread.Join();
 				_autosaveThread = null;
@@ -686,9 +774,9 @@ namespace SearchCacher
 		{
 			try
 			{
-				while (!_cancellationTokenSource.IsCancellationRequested)
+				while (!_autosaveCancellationTokenSource.IsCancellationRequested)
 				{
-					Task.Delay(TimeSpan.FromMinutes(_autoSaveInterval), _cancellationTokenSource.Token).Wait(_cancellationTokenSource.Token);
+					Task.Delay(TimeSpan.FromMinutes(_autoSaveInterval), _autosaveCancellationTokenSource.Token).Wait(_autosaveCancellationTokenSource.Token);
 
 					if (!_IsDirty)
 						continue;
