@@ -2,7 +2,7 @@ namespace SearchCacher.Data
 {
 	internal class SearchService
 	{
-		public const string Version = "1.0.4.0";
+		public const string Version = "1.0.5.0";
 
 		static List<WeakReference<Action<string>>> currentSearchDirChangedHandlers = new List<WeakReference<Action<string>>>();
 		static object handlerLock = new object();
