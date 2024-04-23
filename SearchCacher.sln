@@ -10,15 +10,20 @@ EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		LargeArray_Debug|Any CPU = LargeArray_Debug|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{6A01E51D-44C3-49D5-AD0A-03BA2AE707E3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{6A01E51D-44C3-49D5-AD0A-03BA2AE707E3}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6A01E51D-44C3-49D5-AD0A-03BA2AE707E3}.LargeArray_Debug|Any CPU.ActiveCfg = LargeArray_Debug|Any CPU
+		{6A01E51D-44C3-49D5-AD0A-03BA2AE707E3}.LargeArray_Debug|Any CPU.Build.0 = LargeArray_Debug|Any CPU
 		{6A01E51D-44C3-49D5-AD0A-03BA2AE707E3}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6A01E51D-44C3-49D5-AD0A-03BA2AE707E3}.Release|Any CPU.Build.0 = Release|Any CPU
 		{5D3B270E-6B97-4B6C-ABBD-B67C4A9B1E25}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{5D3B270E-6B97-4B6C-ABBD-B67C4A9B1E25}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5D3B270E-6B97-4B6C-ABBD-B67C4A9B1E25}.LargeArray_Debug|Any CPU.ActiveCfg = LargeArray_Debug|Any CPU
+		{5D3B270E-6B97-4B6C-ABBD-B67C4A9B1E25}.LargeArray_Debug|Any CPU.Build.0 = LargeArray_Debug|Any CPU
 		{5D3B270E-6B97-4B6C-ABBD-B67C4A9B1E25}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5D3B270E-6B97-4B6C-ABBD-B67C4A9B1E25}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection

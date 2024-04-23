@@ -1,6 +1,5 @@
 ﻿using Newtonsoft.Json;
 using SearchCacher.Tools;
-using Syncfusion.Blazor.DataVizCommon;
 using System.Text.RegularExpressions;
 
 namespace SearchCacher
@@ -871,7 +870,11 @@ namespace SearchCacher
 		}
 
 		[JsonProperty("Directories")]
-		internal Dir[] Directories = Array.Empty<Dir>();
+		#if LARGEARRAY_DEBUG
+			internal CryLib.Core.LargeArray<Dir> Directories = new CryLib.Core.LargeArray<Dir>(0);
+		#else
+			internal Dir[] Directories = Array.Empty<Dir>();
+		#endif
 
 		[JsonProperty("Files")]
 		internal File[] Files = Array.Empty<File>();
