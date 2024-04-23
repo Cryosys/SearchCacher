@@ -77,6 +77,9 @@ namespace SearchCacher
 
 		internal readonly string DBPath;
 
+		internal long InitDirCount { get; private set; }
+		internal long InitFileCount { get; private set; }
+
 		private FileDBConfig _config;
 
 		private Dir _DB;
@@ -105,6 +108,8 @@ namespace SearchCacher
 
 				// The parent relation needs to be restored as we do not serialize looped references.
 				_RestoreParentRelation();
+
+				Program.Log($"Got {InitDirCount.ToString("#,##0")} directories and {InitFileCount.ToString("#,##0")} files");
 			}
 			else
 			{
@@ -120,6 +125,9 @@ namespace SearchCacher
 			{
 				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not acquire master lock on file DB");
+
+				InitDirCount  = 0;
+				InitFileCount = 0;
 
 				Recursive(_DB);
 
@@ -139,8 +147,12 @@ namespace SearchCacher
 					Recursive(dir);
 				}
 
+				InitDirCount += parentDir.Directories.Length;
+
 				foreach (var file in parentDir.Files)
 					file.Parent = parentDir;
+
+				InitFileCount += parentDir.Files.Length;
 			}
 		}
 
@@ -189,6 +201,10 @@ namespace SearchCacher
 					List<Task> tasks      = new List<Task>();
 					List<Dir> baseDirs    = new List<Dir>();
 
+					object countLockObj = new object();
+					InitDirCount        = 0;
+					InitFileCount       = 0;
+
 					// Here we do some simple threading where we can check multiple directories at the same time
 					// This does not consider that the root may contain only 1 folder and then splits
 					for (int i = 0; i < baseDirPaths.Length; i++)
@@ -206,7 +222,14 @@ namespace SearchCacher
 							try
 							{
 								(int index, Dir tmpDir) = (Tuple<int, Dir>)val;
-								Recursive(baseDirPaths[index], tmpDir, initCancelSource.Token);
+								long dirCount           = 0, fileCount = 0;
+								Recursive(baseDirPaths[index], tmpDir, initCancelSource.Token, ref dirCount, ref fileCount);
+
+								lock (countLockObj)
+								{
+									InitDirCount  += dirCount;
+									InitFileCount += fileCount;
+								}
 							}
 							catch (Exception ex)
 							{
@@ -270,10 +293,11 @@ namespace SearchCacher
 					initCancelSource.Dispose();
 
 					Program.Log("DB init took: " + (DateTime.Now - preStartTime).ToString("g"));
+					Program.Log($"Got {InitDirCount.ToString("#,##0")} directories and {InitFileCount.ToString("#,##0")} files");
 				}
 			});
 
-			void Recursive(string newPath, Dir parentDir, CancellationToken cancelToken)
+			void Recursive(string newPath, Dir parentDir, CancellationToken cancelToken, ref long dirCount, ref long fileCount)
 			{
 				if (cancelToken.IsCancellationRequested)
 					return;
@@ -297,7 +321,10 @@ namespace SearchCacher
 						Dir dirEntry = new Dir(dirName, parentDir);
 						dirs.Add(dirEntry);
 
-						Recursive(dir, dirEntry, cancelToken);
+						// We only count up in here as the dir can fail
+						dirCount++;
+
+						Recursive(dir, dirEntry, cancelToken, ref dirCount, ref fileCount);
 					}
 					catch { }
 				}
@@ -318,6 +345,8 @@ namespace SearchCacher
 					File fileEntry = new File(fileName, parentDir);
 					parentDir.Files[i] = fileEntry;
 				}
+
+				fileCount += innerFiles.Length;
 			}
 		}
 
