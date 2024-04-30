@@ -1,7 +1,6 @@
 using CryLib.Core;
 using SearchCacher.Data;
 using Syncfusion.Blazor;
-using Syncfusion.Blazor.RichTextEditor;
 using System.Net;
 using System.Reflection;
 
@@ -30,6 +29,8 @@ namespace SearchCacher
 			LibTools.ExceptionManager.ExceptionCaught += ExceptionManager_ExceptionCaught;
 			LibTools.ExceptionManager.bAllowCollection = true;
 			LibTools.ExceptionManager.bLogExceptions   = true;
+
+			Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(SecretsConfig.License);
 
 			if (!System.IO.File.Exists(ConfigPath))
 			{

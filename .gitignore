@@ -3,3 +3,4 @@
 **/Properties/PublishProfiles/
 .vs/
 SearchCacher.csproj.user
+SecretsConfig.cs
