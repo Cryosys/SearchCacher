@@ -1,4 +1,5 @@
 using CryLib.Core;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using SearchCacher.Data;
 using Syncfusion.Blazor;
 using System.Net;
@@ -24,7 +25,8 @@ namespace SearchCacher
 			_logHandler.AddLog(LogTypes.Log);
 			_logHandler.StartHandler();
 
-			Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. " + SearchService.Version;
+			if (!WindowsServiceHelpers.IsWindowsService())
+				Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. " + SearchService.Version;
 
 			LibTools.ExceptionManager.ExceptionCaught += ExceptionManager_ExceptionCaught;
 			LibTools.ExceptionManager.bAllowCollection = true;
@@ -71,7 +73,11 @@ namespace SearchCacher
 			_dog.Watched += Dog_Watched;
 			_dog.Init(cfg);
 
-			var builder = WebApplication.CreateBuilder(args);
+			var builder = WebApplication.CreateBuilder(new WebApplicationOptions()
+			{
+				ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : default,
+				Args            = args
+			});
 
 			_service = new SearchService(cfg);
 
@@ -80,6 +86,7 @@ namespace SearchCacher
 			builder.Services.AddServerSideBlazor();
 			builder.Services.AddSyncfusionBlazor();
 			builder.Services.AddSingleton<SearchService>(_service);
+			builder.Host.UseWindowsService();
 
 			_dog.Start();
 
