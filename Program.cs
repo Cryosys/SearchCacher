@@ -11,9 +11,11 @@ namespace SearchCacher
 	{
 		private static readonly string ConfigPath = Path.Combine(Paths.ExecuterPath, "config.cfg");
 
-		private static SearchService _service;
-		private static Watchdog _dog;
+		private static ISearchService _service;
+		private static Watchdog? _dog;
 		private static AdaptiveLogHandler<LogTypes> _logHandler = new AdaptiveLogHandler<LogTypes>(Path.Combine(Paths.AppPath, "Logs"));
+
+		private static bool _newConfigSet = false;
 
 		public static void Main(string[] args)
 		{
@@ -26,7 +28,7 @@ namespace SearchCacher
 			_logHandler.StartHandler();
 
 			if (!WindowsServiceHelpers.IsWindowsService())
-				Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. " + SearchService.Version;
+				Console.Title = Assembly.GetExecutingAssembly().GetName().Name + " ver. " + ISearchService.Version;
 
 			LibTools.ExceptionManager.ExceptionCaught += ExceptionManager_ExceptionCaught;
 			LibTools.ExceptionManager.bAllowCollection = true;
@@ -37,11 +39,12 @@ namespace SearchCacher
 			if (!System.IO.File.Exists(ConfigPath))
 			{
 				System.IO.File.WriteAllText(ConfigPath, new Config().ToCryJson());
-				_logHandler.StopHandler();
-				return;
 			}
 
 			Config? cfg = System.IO.File.ReadAllText(ConfigPath).FromCryJson<Config>();
+
+			// We only init the network share and watchdog if the config is valid
+			NetworkShareConnector? shareConnector = null;
 
 			if (cfg is null)
 				throw new Exception("Config is invalid, fix or delete it");
@@ -49,29 +52,31 @@ namespace SearchCacher
 			if (string.IsNullOrWhiteSpace(cfg.SearchPath))
 			{
 				Log("Config.cfg SearchPath has to be filled with a valid path");
-				_logHandler.StopHandler();
-				return;
+				_service = new DummySearchService();
 			}
-
-			NetworkShareConnector? shareConnector = null;
-
-			if (!string.IsNullOrWhiteSpace(cfg.UserName))
+			else
 			{
-				// Split the domain and username
-				string[] usernameSplit = cfg.UserName.Split(@"\", StringSplitOptions.RemoveEmptyEntries);
-				if (usernameSplit.Length == 1)
-					// In case there is not domain we use an empty string
-					usernameSplit = new string[] { "", usernameSplit[0] };
+				// We only need the share if the path is a network path and if the configs user is set
+				if (cfg.SearchPath.StartsWith(@"\\") && !string.IsNullOrWhiteSpace(cfg.UserName))
+				{
+					// Split the domain and username
+					string[] usernameSplit = cfg.UserName.Split(@"\", StringSplitOptions.RemoveEmptyEntries);
+					if (usernameSplit.Length == 1)
+						// In case there is not domain we use an empty string
+						usernameSplit = ["", usernameSplit[0]];
 
-				NetworkCredential xCred = new NetworkCredential(usernameSplit[1], cfg.Password, usernameSplit[0]);
+					NetworkCredential xCred = new NetworkCredential(usernameSplit[1], cfg.Password, usernameSplit[0]);
 
-				shareConnector = new NetworkShareConnector(cfg.SearchPath, xCred);
-				_              = Directory.GetDirectories(cfg.SearchPath);
+					shareConnector = new NetworkShareConnector(cfg.SearchPath, xCred);
+					_              = Directory.GetDirectories(cfg.SearchPath);
+				}
+
+				_dog          = new Watchdog();
+				_dog.Watched += Dog_Watched;
+				_dog.Init(cfg);
+
+				_service = new SearchService(cfg);
 			}
-
-			_dog          = new Watchdog();
-			_dog.Watched += Dog_Watched;
-			_dog.Init(cfg);
 
 			var builder = WebApplication.CreateBuilder(new WebApplicationOptions()
 			{
@@ -79,16 +84,14 @@ namespace SearchCacher
 				Args            = args
 			});
 
-			_service = new SearchService(cfg);
-
 			// Add services to the container.
 			builder.Services.AddRazorPages();
 			builder.Services.AddServerSideBlazor();
 			builder.Services.AddSyncfusionBlazor();
-			builder.Services.AddSingleton<SearchService>(_service);
+			builder.Services.AddSingleton<ISearchService>(_service);
 			builder.Host.UseWindowsService();
 
-			_dog.Start();
+			_dog?.Start();
 
 			var app = builder.Build();
 
@@ -112,14 +115,32 @@ namespace SearchCacher
 			// This call blocks the main thread
 			app.Run();
 
-			_dog.Stop();
+			_dog?.Stop();
 			_service.CleanUp();
 
 			// Save the DB just in case
-			_service.SaveDB();
+			if (!_newConfigSet)
+				_service.SaveDB();
+			else if (System.IO.File.Exists(ConfigPath))
+				_service.DelDB();
 
 			shareConnector?.Dispose();
 			_logHandler.StopHandler();
+		}
+
+		internal static bool SetNewConfig(WebConfigModel cfg)
+		{
+			try
+			{
+				System.IO.File.WriteAllText(ConfigPath, new Config(cfg).ToCryJson());
+				_newConfigSet = true;
+				return true;
+			}
+			catch (Exception ex)
+			{
+				Log(ex.ToString());
+				return false;
+			}
 		}
 
 		private static void ExceptionManager_ExceptionCaught(ExceptionManager.ExceptionInfo exInfo)
@@ -184,7 +205,7 @@ namespace SearchCacher
 			}
 			catch (Exception ex)
 			{
-				Log(ex.ToString());
+				Log(ex.ToString() + Environment.NewLine + $"Oldpath: {data.OldFullPath}; Newpath: {data.FullPath}");
 				LibTools.ExceptionManager.AddException(ex);
 			}
 		}

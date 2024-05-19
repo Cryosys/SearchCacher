@@ -80,9 +80,9 @@ namespace SearchCacher
 		internal long InitDirCount { get; private set; }
 		internal long InitFileCount { get; private set; }
 
-		private FileDBConfig _config;
+		private FileDBConfig? _config;
 
-		private Dir _DB;
+		private Dir? _DB;
 		private readonly MultiLock _dbLock = new MultiLock();
 
 		private Thread? _autosaveThread;
@@ -126,6 +126,9 @@ namespace SearchCacher
 				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not acquire master lock on file DB");
 
+				if (_config is null || _DB is null)
+					return;
+
 				InitDirCount  = 0;
 				InitFileCount = 0;
 
@@ -163,6 +166,9 @@ namespace SearchCacher
 			{
 				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not acquire master lock on file DB");
+
+				if (_config is null || _DB is null)
+					return;
 
 				_config.DB = new Dir();
 				_DB        = _config.DB;
@@ -359,6 +365,9 @@ namespace SearchCacher
 				if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
 					throw new Exception("Could not acquire master lock on file DB");
 
+				if (_config is null || _DB is null)
+					return;
+
 				string subPath      = path.Replace(_config.RootPath, "");
 				string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 
@@ -458,13 +467,16 @@ namespace SearchCacher
 						return;
 				}
 
-				string subPath         = oldPath.Replace(_config.RootPath, "");
-				string[] pathSplits    = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
-				string[] newPathSplits = newPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
-
 				// We can do everything else above as it does not concern the DB
 				if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
 					throw new Exception("Could not acquire master lock on file DB");
+
+				if (_config is null || _DB is null)
+					return;
+
+				string subPath         = oldPath.Replace(_config.RootPath, "");
+				string[] pathSplits    = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
+				string[] newPathSplits = newPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 
 				Dir curDir = _DB;
 
@@ -621,6 +633,9 @@ namespace SearchCacher
 					throw new Exception("Could not acquire multi lock on file DB");
 
 				Program.Log($"search path: {settings}; pattern: {settings.Pattern}");
+
+				if (_config is null || _DB is null)
+					return new ISearcher.SearchResult(false, Array.Empty<string>(), "DB is not initialized");
 
 				Dir baseSearchDir = _DB;
 
