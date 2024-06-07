@@ -6,6 +6,8 @@ namespace SearchCacher.Data
 
 		public string SearchPath { get; }
 
+		bool AllowOnlyLocalSettingsAccess();
+
 		Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings);
 
 		Task InitDB();
@@ -28,6 +30,8 @@ namespace SearchCacher.Data
 	internal class DummySearchService : ISearchService
 	{
 		public string SearchPath => string.Empty;
+
+		public bool AllowOnlyLocalSettingsAccess() => false;
 
 		public Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings) => Task<ISearcher.SearchResult>.FromResult(new ISearcher.SearchResult(false, Array.Empty<string>(), "Cannot run search, searcher not initialized. Most likely because of an invalid config"));
 
@@ -69,6 +73,8 @@ namespace SearchCacher.Data
 			if (cfg.AutoSaveEnabled)
 				_searchHandler.StartAutoSave();
 		}
+
+		public bool AllowOnlyLocalSettingsAccess() => _cfg.AllowOnlyLocalSettingsAccess;
 
 		public Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings) => Task.FromResult(_searchHandler.Search(settings));
 

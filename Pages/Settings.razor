@@ -6,6 +6,9 @@
 @using Syncfusion.Blazor.Spinner;
 @inject ISearchService SearchService
 
+@if (!IsValidUser())
+    return;
+
 <SfToast ID="toast_default" @ref="ToastObj" Title="Info" Timeout="5000" Icon="e-meeting">
     <ToastPosition X="Right" Y="Bottom" />
 </SfToast>
@@ -143,6 +146,9 @@
 </style>
 
 @code {
+    [CascadingParameter]
+    private ConnectionInfo? connectionInfo { get; set; }
+
     private SfToast? ToastObj;
     private bool IsSpinnerVisible { get; set; } = false;
     private string currentDir { get; set; } = "";
@@ -210,5 +216,25 @@
                 Content = info,
                 Timeout = timeout
             });
+    }
+
+    protected bool IsValidUser()
+    {
+        if (SearchService.AllowOnlyLocalSettingsAccess())
+        {
+            if (connectionInfo is null)
+                return false;
+
+            if (string.IsNullOrWhiteSpace(connectionInfo.RemoteIpAddress))
+            {
+                ShowToast("Cannot verify user access");
+                return false;
+            }
+
+            if (connectionInfo.RemoteIpAddress is not "127.0.0.1" and not "::1")
+                return false;
+        }
+
+        return true;
     }
 }

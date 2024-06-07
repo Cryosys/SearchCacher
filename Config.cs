@@ -20,6 +20,12 @@ namespace SearchCacher
 		internal string SearchPath { get; set; } = "";
 
 		/// <summary>
+		///	True to allow only localhost/127.0.0.1 access to the settings page.
+		/// </summary>
+		[JsonProperty("AllowOnlyLocalSettingsAccess")]
+		internal bool AllowOnlyLocalSettingsAccess = false;
+
+		/// <summary>
 		/// Gets or sets the full path of the database file.
 		/// It should (if possible) be stored on a drive that is decently fast on write, read does not matter too much, only the startup will be slower.
 		/// The file can get really large depending on the amount of folders/files to cache on.

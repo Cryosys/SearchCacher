@@ -1,4 +1,5 @@
 ﻿@using SearchCacher.Data
+@inject ISearchService SearchService
 
 <head>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css" rel="stylesheet" />
@@ -11,11 +12,14 @@
                 <span class="oi oi-home" aria-hidden="true"></span> Search
             </NavLink>
         </div>
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="settings">
-                <span class="oi oi-cog" aria-hidden="true"></span> Settings
-            </NavLink>
-        </div>
+        @if (IsValidUser())
+        {
+            <div class="nav-item px-3">
+                <NavLink class="nav-link" href="settings">
+                    <span class="oi oi-cog" aria-hidden="true"></span> Settings
+                </NavLink>
+            </div>
+        }
         <div class="nav-item px-3">
             <a class="nav-link" href="https://github.com/Cryosys/SearchCacher" target="_blank">
                 <span class="oi bi-github" aria-hidden="true"></span> Issues &amp; Feedback
@@ -55,6 +59,9 @@
 </style>
 
 @code {
+    [CascadingParameter]
+    private ConnectionInfo? connectionInfo { get; set; }
+
     public bool SidebarToggle
     {
         get => _sidebarToggle;
@@ -67,4 +74,21 @@
     }
 
     private bool _sidebarToggle = false;
+
+    protected bool IsValidUser()
+    {
+        if (SearchService.AllowOnlyLocalSettingsAccess())
+        {
+            if (connectionInfo is null)
+                return false;
+
+            if (string.IsNullOrWhiteSpace(connectionInfo.RemoteIpAddress))
+                return false;
+
+            if (connectionInfo.RemoteIpAddress is not "127.0.0.1" and not "::1")
+                return false;
+        }
+
+        return true;
+    }
 }

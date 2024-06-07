@@ -4,6 +4,7 @@ using SearchCacher.Data;
 using Syncfusion.Blazor;
 using System.Net;
 using System.Reflection;
+using System.Security.Cryptography.X509Certificates;
 
 namespace SearchCacher
 {
@@ -11,7 +12,7 @@ namespace SearchCacher
 	{
 		private static readonly string ConfigPath = Path.Combine(Paths.ExecuterPath, "config.cfg");
 
-		private static ISearchService _service;
+		private static ISearchService? _service;
 		private static Watchdog? _dog;
 		private static AdaptiveLogHandler<LogTypes> _logHandler = new AdaptiveLogHandler<LogTypes>(Path.Combine(Paths.AppPath, "Logs"));
 
@@ -87,13 +88,81 @@ namespace SearchCacher
 			// Add services to the container.
 			builder.Services.AddRazorPages();
 			builder.Services.AddServerSideBlazor();
+			builder.Services.AddHttpContextAccessor();
 			builder.Services.AddSyncfusionBlazor();
 			builder.Services.AddSingleton<ISearchService>(_service);
 			builder.Host.UseWindowsService();
 
+			bool useHttpsRedirect = false;
+			int sslPort           = 443;
+
+			foreach (string arg in args)
+			{
+				if (arg.StartsWith("--thumb="))
+				{
+					string[] thumbArgs = arg.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+
+					if (thumbArgs.Length != 2)
+						continue;
+
+					X509Certificate2? cert = null;
+
+					using (X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine))
+					{
+						store.Open(OpenFlags.ReadOnly);
+
+						for (int iIndex = 0; iIndex < store.Certificates.Count; iIndex++)
+						{
+							var xCert = store.Certificates[iIndex];
+							if (xCert.Thumbprint.ToUpper() == thumbArgs[1].ToUpper())
+							{
+								cert = xCert;
+								Console.WriteLine("Found cert: " + cert.Subject);
+								break;
+							}
+						}
+					}
+
+					if (cert == null)
+					{
+						Console.WriteLine("Could find not find cert in certificate store.");
+						throw new ArgumentException("Could find not find cert in certificate store.");
+					}
+
+					Console.WriteLine("Assigning cert...");
+
+					builder.WebHost.ConfigureKestrel((context, serverOptions) =>
+					{
+						serverOptions.ConfigureHttpsDefaults((listeningOptions) =>
+						{
+							listeningOptions.ServerCertificate = cert;
+						});
+					});
+				}
+				else if (arg.StartsWith("--sslport="))
+				{
+					string[] portArgs = arg.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+
+					if (portArgs.Length != 2)
+						continue;
+
+					if (!int.TryParse(portArgs[1], out sslPort))
+					{
+						Console.WriteLine($"'{portArgs[1]}' is not a valid port");
+						throw new ArgumentException($"'{portArgs[1]}' is not a valid port");
+					}
+				}
+				else if (arg.StartsWith("--httpsredirect"))
+					useHttpsRedirect = true;
+			}
+
 			_dog?.Start();
 
 			var app = builder.Build();
+
+			if (useHttpsRedirect)
+				app.UseHttpsRedirection();
+			// app.Urls.Add($"https://*:{sslPort}");
 
 			// Configure the HTTP request pipeline.
 			if (!app.Environment.IsDevelopment())
@@ -102,8 +171,6 @@ namespace SearchCacher
 				// The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
 				app.UseHsts();
 			}
-
-			// app.UseHttpsRedirection();
 
 			app.UseStaticFiles();
 
