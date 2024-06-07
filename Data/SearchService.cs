@@ -2,7 +2,7 @@ namespace SearchCacher.Data
 {
 	internal interface ISearchService
 	{
-		public const string Version = "1.0.5.0";
+		public const string Version = "1.0.6.0";
 
 		public string SearchPath { get; }
 
