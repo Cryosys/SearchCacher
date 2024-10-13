@@ -34,6 +34,7 @@
                                 <tr><td><SfSwitch @bind-Checked="data.searchDirs" /></td><td>Directories</td></tr>
                                 <tr><td><SfSwitch @bind-Checked="data.searchFiles" /></td><td>Files</td></tr>
                                 <tr><td><SfSwitch @bind-Checked="data.caseSensitive" /></td><td>Case sensitive search</td></tr>
+                                <tr><td><SfSwitch @bind-Checked="data.useIgnoreList" /></td><td>Use ignore list</td></tr>
                             </tbody>
                         </table>
                     </ContentTemplate>
@@ -63,6 +64,26 @@
             </AccordionItems>
         </SfAccordion>
     </div>
+
+    <SfAccordion Width="auto" LoadOnDemand="false">
+        <AccordionItems>
+            <AccordionItem Header="Ignore List" Expanded="false">
+                <ContentTemplate>
+                    <SfGrid TValue="string" DataSource="@data.ignoreList" AllowSorting="true" EnableVirtualization="true" Height="480" EnableInfiniteScrolling="true" AllowSelection="false">
+                        <GridColumns>
+                            <GridColumn HeaderText="Ignored Paths" IsPrimaryKey="true">
+                                <Template>
+                                    @{
+                                        <div>@(context as string)</div>
+                                    }
+                                </Template>
+                            </GridColumn>
+                        </GridColumns>
+                    </SfGrid>
+                </ContentTemplate>
+            </AccordionItem>
+        </AccordionItems>
+    </SfAccordion>
     <br />
 
     <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
@@ -143,6 +164,13 @@
         public bool caseSensitive { get; set; } = false;
 
         [Required]
+        [Range(typeof(bool), "false", "true")]
+        public bool useIgnoreList { get; set; } = true;
+
+        [Required]
+        public string[] ignoreList { get; set; } = [];
+
+        [Required]
         public string searchPath { get; set; } = "*";
 
         [Required]
@@ -163,6 +191,13 @@
         new ContextMenuItemModel() { Text = "Copy path", Target = ".e-content", Id = "copypath" },
         new ContextMenuItemModel() { Text = "Search in path", Target = ".e-content", Id = "searchinpath" },
     };
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        data.ignoreList = searchService.GetIgnoreList();
+    }
 
     protected async Task Search()
     {
@@ -195,7 +230,7 @@
         data.Paths = null;
 
         DateTime preSearch = DateTime.Now;
-        data.searchTask = searchService.GetSearchResult(new SearchSettings(data.pattern, data.searchOnlyFileExt, data.searchDirs, data.searchFiles, data.searchOnFullPath, data.caseSensitive, data.searchPath));
+        data.searchTask = searchService.GetSearchResult(new SearchSettings(data.pattern, data.searchOnlyFileExt, data.searchDirs, data.searchFiles, data.searchOnFullPath, data.caseSensitive, data.useIgnoreList, data.ignoreList, data.searchPath));
         await data.searchTask;
         if (data.searchTask.Status != TaskStatus.RanToCompletion)
         {

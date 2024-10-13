@@ -10,6 +10,8 @@ namespace SearchCacher.Data
 
 		Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings);
 
+		string[] GetIgnoreList();
+
 		Task InitDB();
 
 		void DelDB();
@@ -25,6 +27,8 @@ namespace SearchCacher.Data
 		void CleanUp();
 
 		WebConfigModel GetWebConfigModel();
+
+		void SetIgnoreList(List<string> ignoreList);
 	}
 
 	internal class DummySearchService : ISearchService
@@ -34,6 +38,8 @@ namespace SearchCacher.Data
 		public bool AllowOnlyLocalSettingsAccess() => false;
 
 		public Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings) => Task<ISearcher.SearchResult>.FromResult(new ISearcher.SearchResult(false, Array.Empty<string>(), "Cannot run search, searcher not initialized. Most likely because of an invalid config"));
+
+		public string[] GetIgnoreList() => [];
 
 		public Task InitDB() => Task.CompletedTask;
 
@@ -50,6 +56,8 @@ namespace SearchCacher.Data
 		public void CleanUp() { }
 
 		public WebConfigModel GetWebConfigModel() => new WebConfigModel(new Config());
+
+		public void SetIgnoreList(List<string> ignoreList) { }
 	}
 
 	internal class SearchService : ISearchService
@@ -78,6 +86,8 @@ namespace SearchCacher.Data
 
 		public Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings) => Task.FromResult(_searchHandler.Search(settings));
 
+		public string[] GetIgnoreList() => _cfg.IgnoreList.ToArray();
+
 		public Task InitDB() => _searchHandler.InitDB(_cfg.SearchPath);
 
 		public void DelDB() => _searchHandler.DelDB();
@@ -93,6 +103,12 @@ namespace SearchCacher.Data
 		public void CleanUp() => _searchHandler.StopAutoSave();
 
 		public WebConfigModel GetWebConfigModel() => new WebConfigModel(_cfg);
+
+		public void SetIgnoreList(List<string> ignoreList)
+		{
+			_cfg.IgnoreList = ignoreList;
+			Program.SetNewConfig(_cfg, false);
+		}
 
 		internal static void SubscribeToCurrentSearchDir(Action<string> callback)
 		{

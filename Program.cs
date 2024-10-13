@@ -195,12 +195,16 @@ namespace SearchCacher
 			_logHandler.StopHandler();
 		}
 
-		internal static bool SetNewConfig(WebConfigModel cfg)
+		internal static bool SetNewConfig(WebConfigModel cfg, bool forceDBDelete = true) => SetNewConfig(new Config(cfg));
+
+		internal static bool SetNewConfig(Config cfg, bool forceDBDelete = true)
 		{
 			try
 			{
-				System.IO.File.WriteAllText(ConfigPath, new Config(cfg).ToCryJson());
-				_newConfigSet = true;
+				System.IO.File.WriteAllText(ConfigPath, cfg.ToCryJson());
+				if (forceDBDelete)
+					_newConfigSet = true;
+
 				return true;
 			}
 			catch (Exception ex)

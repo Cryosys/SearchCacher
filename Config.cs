@@ -1,4 +1,5 @@
 ﻿using Newtonsoft.Json;
+using System.Collections.ObjectModel;
 
 namespace SearchCacher
 {
@@ -20,6 +21,12 @@ namespace SearchCacher
 		internal string SearchPath { get; set; } = "";
 
 		/// <summary>
+		/// Gets or sets the list of paths to ignore in the search.
+		/// </summary>
+		[JsonProperty("IgnoreList")]
+		internal List<string> IgnoreList { get; set; } = [];
+
+		/// <summary>
 		///	True to allow only localhost/127.0.0.1 access to the settings page.
 		/// </summary>
 		[JsonProperty("AllowOnlyLocalSettingsAccess")]
@@ -39,17 +46,21 @@ namespace SearchCacher
 		[JsonProperty("WatchDogFilter")]
 		internal string? WatchDogFilter { get; set; } = "*.*";
 
+		/// <summary>
+		/// Gets or sets a value indicating whether the automatic save is enabled.
+		/// </summary>
 		[JsonProperty("AutoSaveEnabled")]
 		internal bool AutoSaveEnabled { get; set; } = true;
 
+		/// <summary> Gets or sets the auto save interval in minutes. </summary>
 		[JsonProperty("AutoSaveInterval")]
 		internal int AutoSaveInterval { get; set; } = 5;
 
-		/// <summary>   Gets or sets the username for a network share. Can include a domain if written like domain\username </summary>
+		/// <summary> Gets or sets the username for a network share. Can include a domain if written like domain\username </summary>
 		[JsonProperty("UserName")]
 		internal string UserName { get; set; } = "";
 
-		/// <summary>   Gets or sets the password for a network share. </summary>
+		/// <summary> Gets or sets the password for a network share. </summary>
 		[JsonProperty("Password")]
 		internal string Password { get; set; } = "";
 
@@ -61,6 +72,7 @@ namespace SearchCacher
 		{
 			ConnectionString = cfg.ConnectionString;
 			SearchPath       = cfg.SearchPath;
+			IgnoreList       = cfg.IgnoreList.ToList();
 			FileDBPath       = cfg.FileDBPath;
 			WatchDogFilter   = cfg.WatchDogFilter;
 			AutoSaveEnabled  = cfg.AutoSaveEnabled;
@@ -83,6 +95,11 @@ namespace SearchCacher
 		/// This value describes the path for the cacher to monitor and search on.
 		/// </summary>
 		internal string SearchPath { get; set; } = "";
+
+		/// <summary>
+		/// Gets or sets the paths to ignore.
+		/// </summary>
+		internal ObservableCollection<string> IgnoreList { get; set; } = [];
 
 		/// <summary>
 		/// Gets or sets the full path of the database file.
@@ -110,6 +127,7 @@ namespace SearchCacher
 		{
 			ConnectionString = cfg.ConnectionString;
 			SearchPath       = cfg.SearchPath;
+			IgnoreList       = new(cfg.IgnoreList);
 			FileDBPath       = cfg.FileDBPath;
 			WatchDogFilter   = cfg.WatchDogFilter;
 			AutoSaveEnabled  = cfg.AutoSaveEnabled;

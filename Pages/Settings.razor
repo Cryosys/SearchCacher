@@ -1,6 +1,7 @@
 ﻿@page "/settings"
 @using SearchCacher.Data
 @using Syncfusion.Blazor.Buttons;
+@using Syncfusion.Blazor.Grids
 @using Syncfusion.Blazor.Inputs
 @using Syncfusion.Blazor.Notifications
 @using Syncfusion.Blazor.Spinner;
@@ -28,7 +29,7 @@
                 <SfTextBox Multiline="false" @bind-Value="Cfg.SearchPath" style="min-width:400px" />
             </td>
             <td>
-                The search path is the actual path to the root directory of the storage you want to search through. <br/>
+                The search path is the actual path to the root directory of the storage you want to search through. <br />
                 E.g. '\\some.storage.net\some root path\folder to search in'. Do not escape the path like this -> '\\\\some.storage.net\\some root path\\folder to search in'
             </td>
         </tr>
@@ -79,9 +80,9 @@
                 <SfTextBox Multiline="false" @bind-Value="Cfg.FileDBPath" style="min-width:400px" />
             </td>
             <td>
-                The file DB can become a large file and should be, if possible, stored on a storage media that is not going to break fast. <br/>
-                The database will, if enabled, be autosaved every x minutes which can put quite the strain on the drive. <br/>
-                In theory the DB does not need to be saved that often and could only be saved on stop of the service/app. <br/>
+                The file DB can become a large file and should be, if possible, stored on a storage media that is not going to break fast. <br />
+                The database will, if enabled, be autosaved every x minutes which can put quite the strain on the drive. <br />
+                In theory the DB does not need to be saved that often and could only be saved on stop of the service/app. <br />
                 But keep in mind that if the service breaks for what ever reason you most likely will need to reinitalize it.
             </td>
         </tr>
@@ -135,10 +136,33 @@
 
 <br />
 @currentDir
+<br />
+
+<div style="display:flex;flex-direction:row;text-align:center;align-items:center">
+    <SfButton style="margin-right:5px;margin-bottom:5px;margin-top:5px" @onclick=SaveIgnoreList>Save List</SfButton>
+    <SfTextBox Multiline="false" @bind-Value="@ignorePathToAdd" style="min-width:400px" />
+    <SfButton style="margin-left:5px;margin-bottom:5px;margin-top:5px" @onclick=AddIgnorepath>Add</SfButton>
+</div>
+
+<div style="align-items:start">
+    <SfGrid TValue="string" DataSource="@Cfg.IgnoreList" AllowSorting="true" EnableVirtualization="true" Height="480" EnableInfiniteScrolling="true" AllowSelection="false">
+        <GridColumns>
+            <GridColumn HeaderText="Ignored Paths" IsPrimaryKey="true">
+                <Template>
+                    @{
+                        <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
+                            <SfButton @onclick="@(e => DeleteIgnoreListEntry(context as string))">Delete</SfButton>
+                            <div style="margin-left:10px">@(context as string)</div>
+                        </div>
+                    }
+                </Template>
+            </GridColumn>
+        </GridColumns>
+    </SfGrid>
+</div>
 
 <style>
-    .a-text:visited
-    {
+    .a-text:visited {
         color: deepskyblue;
         background-color: transparent;
         text-decoration: none;
@@ -152,6 +176,7 @@
     private SfToast? ToastObj;
     private bool IsSpinnerVisible { get; set; } = false;
     private string currentDir { get; set; } = "";
+    private string ignorePathToAdd { get; set; } = "";
 
     WebConfigModel Cfg;
 
@@ -160,7 +185,14 @@
         base.OnInitialized();
 
         Cfg = SearchService.GetWebConfigModel();
-        SearchCacher.Data.SearchService.SubscribeToCurrentSearchDir((dir) => currentDir = dir);
+        SearchCacher.Data.SearchService.SubscribeToCurrentSearchDir(async (dir) =>
+        {
+            await InvokeAsync(() =>
+            {
+                currentDir = dir;
+                StateHasChanged();
+            });
+        });
     }
 
     protected void SetConfig()
@@ -186,6 +218,7 @@
         currentDir = "";
         ShowToast("Done");
         IsSpinnerVisible = false;
+        StateHasChanged();
     }
 
     protected void DelDB()
@@ -204,6 +237,42 @@
         SearchService.SaveDB();
         ShowToast("Done");
         IsSpinnerVisible = false;
+    }
+
+    protected void SaveIgnoreList()
+    {
+        SearchService.SetIgnoreList(Cfg.IgnoreList.ToList());
+    }
+
+    protected async void AddIgnorepath()
+    {
+        if (string.IsNullOrWhiteSpace(ignorePathToAdd))
+        {
+            ShowToast("Path is empty...");
+            return;
+        }
+
+        while (ignorePathToAdd.EndsWith("\\"))
+            ignorePathToAdd = ignorePathToAdd.Substring(0, ignorePathToAdd.Length - 1);
+
+        if (!Cfg.IgnoreList.Contains(ignorePathToAdd))
+        {
+            Cfg.IgnoreList.Add(ignorePathToAdd);
+            await Task.Delay(100);
+            ShowToast("Added path");
+            StateHasChanged();
+        }
+        else
+            ShowToast("Path already in ignore list");
+    }
+
+    protected void DeleteIgnoreListEntry(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        Cfg.IgnoreList.Remove(path);
+        StateHasChanged();
     }
 
     protected async void ShowToast(string info, int timeout = 2500)

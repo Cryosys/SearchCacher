@@ -666,6 +666,9 @@ namespace SearchCacher
 					results.Add(new List<string>());
 					Task searchTask = new Task(delegate(object? val)
 					{
+						if (val is null)
+							return;
+
 						RecursiveSearch(dir, results[(int) val]);
 					}, i);
 
@@ -676,6 +679,10 @@ namespace SearchCacher
 				if (settings.SearchDirs)
 					foreach (var dir in baseSearchDir.Directories)
 					{
+						if (settings.UseIgnoreList)
+							if (settings.IgnoreList.Any(ignorePath => dir.FullPath == ignorePath))
+								continue;
+
 						if (settings.SearchOnFullPath)
 						{
 							if (Regex.IsMatch(dir.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
@@ -698,8 +705,13 @@ namespace SearchCacher
 					}
 
 				if (settings.SearchFiles)
+				{
 					foreach (var file in baseSearchDir.Files)
 					{
+						if (settings.UseIgnoreList)
+							if (settings.IgnoreList.Any(ignorePath => file.FullPath == ignorePath))
+								continue;
+
 						if (settings.SearchOnlyFileExt && file.Extension == settings.Pattern)
 						{
 							dbResults.Add(file.FullPath);
@@ -714,6 +726,7 @@ namespace SearchCacher
 						else if (Regex.IsMatch(file.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 							dbResults.Add(file.FullPath);
 					}
+				}
 
 				Task.WaitAll(searchTasks, TimeSpan.FromMinutes(3));
 			}
@@ -737,6 +750,10 @@ namespace SearchCacher
 			{
 				foreach (var dir in curDir.Directories)
 				{
+					if (settings.UseIgnoreList)
+						if (settings.IgnoreList.Any(ignorePath => dir.FullPath == ignorePath))
+							continue;
+
 					if (settings.SearchDirs && !settings.SearchOnlyFileExt)
 						if (settings.SearchOnFullPath)
 						{
@@ -764,6 +781,10 @@ namespace SearchCacher
 				if (settings.SearchFiles)
 					foreach (var file in curDir.Files)
 					{
+						if (settings.UseIgnoreList)
+							if (settings.IgnoreList.Any(ignorePath => file.FullPath == ignorePath))
+								continue;
+
 						if (settings.SearchOnlyFileExt && file.Extension == settings.Pattern)
 						{
 							foundFiles.Add(file.FullPath);
