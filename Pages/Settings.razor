@@ -241,7 +241,9 @@
 
     protected void SaveIgnoreList()
     {
+        ShowToast("Saving Ignore List...");
         SearchService.SetIgnoreList(Cfg.IgnoreList.ToList());
+        ShowToast("Done");
     }
 
     protected async void AddIgnorepath()
