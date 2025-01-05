@@ -91,7 +91,7 @@ namespace SearchCacher
 			builder.Services.AddHttpContextAccessor();
 			builder.Services.AddSyncfusionBlazor();
 			builder.Services.AddSingleton<ISearchService>(_service);
-			builder.Host.UseWindowsService();
+			builder.Services.AddWindowsService();
 
 			bool useHttpsRedirect = false;
 			int sslPort           = 443;
