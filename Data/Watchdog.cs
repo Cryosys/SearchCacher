@@ -6,9 +6,9 @@ namespace SearchCacher
 	{
 		internal event Action<WatchedEventArgs>? Watched;
 
-		internal string CurrentWatchPath { get; private set; } = string.Empty;
+		internal List<string> CurrentWatchPaths { get; private set; } = [];
 
-		private FileSystemWatcher? _watcher;
+		private List<FileSystemWatcher> _watchers = [];
 		private BlockingCollection<WatchedEventArgs>? _blocks;
 		private Thread? _eventThread;
 
@@ -16,44 +16,64 @@ namespace SearchCacher
 		{
 		}
 
-		internal void Init(Config config)
+		internal void AddWatcher(string searchPath, string? filter = "*.*")
 		{
-			CurrentWatchPath = config.SearchPath;
-			_watcher         = new FileSystemWatcher(CurrentWatchPath);
-			_watcher.BeginInit();
-			_watcher.Filter       = config.WatchDogFilter ?? "*.*";
-			_watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime | NotifyFilters.DirectoryName;
-			_watcher.Created     += Watcher_Created;
-			_watcher.Deleted     += Watcher_Deleted;
-			_watcher.Renamed     += Watcher_Renamed;
-			_watcher.Error       += Watcher_Error;
+			if (_watchers.Any(x => x.Path == searchPath))
+				return;
+
+			var watcher = new FileSystemWatcher(searchPath);
+			watcher.BeginInit();
+			watcher.Filter       = filter ?? "*.*";
+			watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime | NotifyFilters.DirectoryName;
+			watcher.Created     += Watcher_Created;
+			watcher.Deleted     += Watcher_Deleted;
+			watcher.Renamed     += Watcher_Renamed;
+			watcher.Error       += Watcher_Error;
 
 			// 64 KB is max described by https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher.internalbuffersize?view=net-8.0
 			// However, apparently you can set values higher than 64KB?
-			_watcher.InternalBufferSize = 64 * 1024;
-			_watcher.EndInit();
+			watcher.InternalBufferSize = 64 * 1024;
+			watcher.EndInit();
 
-			_watcher.IncludeSubdirectories = true;
+			watcher.IncludeSubdirectories = true;
+
+			_watchers.Add(watcher);
+			CurrentWatchPaths.Add(searchPath);
+		}
+
+		internal void RemoveWatcher(string searchPath)
+		{
+			var watcher = _watchers.Find(x => x.Path == searchPath);
+			if (watcher is null)
+				return;
+
+			_watchers.Remove(watcher);
+			watcher.EnableRaisingEvents = false;
+			watcher.Dispose();
+
+			CurrentWatchPaths.Remove(searchPath);
 		}
 
 		internal void Start()
 		{
-			if (_watcher is null)
-				throw new NullReferenceException(nameof(_watcher));
+			if (_watchers is null)
+				throw new NullReferenceException(nameof(_watchers));
 
 			_blocks      = new BlockingCollection<WatchedEventArgs>();
 			_eventThread = new Thread(EventInvokerThread);
 			_eventThread.Start();
 
-			_watcher.EnableRaisingEvents = true;
+			foreach (var watcher in _watchers)
+				watcher.EnableRaisingEvents = true;
 		}
 
 		internal void Stop()
 		{
-			if (_watcher is null)
-				throw new NullReferenceException(nameof(_watcher));
+			if (_watchers is null)
+				throw new NullReferenceException(nameof(_watchers));
 
-			_watcher.EnableRaisingEvents = false;
+			foreach (var watcher in _watchers)
+				watcher.EnableRaisingEvents = false;
 
 			_blocks?.CompleteAdding();
 			_eventThread?.Join();
@@ -68,19 +88,19 @@ namespace SearchCacher
 
 		private void Watcher_Created(object sender, FileSystemEventArgs e)
 		{
-			if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, e.FullPath)))
+			if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, ((FileSystemWatcher) sender).Path, e.FullPath)))
 				Program.Log($"Unable to add watchdog event: {e.ChangeType} -> {e.FullPath}");
 		}
 
 		private void Watcher_Deleted(object sender, FileSystemEventArgs e)
 		{
-			if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, e.FullPath)))
+			if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, ((FileSystemWatcher) sender).Path, e.FullPath)))
 				Program.Log($"Unable to add watchdog event: {e.ChangeType} -> {e.FullPath}");
 		}
 
 		private void Watcher_Renamed(object sender, RenamedEventArgs e)
 		{
-			if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, e.FullPath, e.OldFullPath)))
+			if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, ((FileSystemWatcher) sender).Path, e.FullPath, e.OldFullPath)))
 				Program.Log($"Unable to add watchdog event: {e.ChangeType} -> {e.FullPath};{e.OldFullPath}");
 		}
 
@@ -94,9 +114,12 @@ namespace SearchCacher
 
 			internal string OldFullPath { get; }
 
-			public WatchedEventArgs(WatcherChangeTypes changeType, string fullPath, string oldFullPath = "")
+			internal string SearchPath { get; }
+
+			public WatchedEventArgs(WatcherChangeTypes changeType, string searchPath, string fullPath, string oldFullPath = "")
 			{
 				ChangeType  = changeType;
+				SearchPath  = searchPath;
 				FullPath    = fullPath;
 				OldFullPath = oldFullPath;
 			}

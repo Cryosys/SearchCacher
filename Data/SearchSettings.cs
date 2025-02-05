@@ -14,13 +14,9 @@
 
 		public bool CaseSensitive { get; set; } = false;
 
-		public bool UseIgnoreList { get; set; } = true;
+		public List<SearchPathSettings> SearchPaths { get; } = [];
 
-		public string[] IgnoreList { get; set; } = [];
-
-		public string SearchPath { get; set; } = "*";
-
-		public SearchSettings(string pattern = "*.*", bool searchOnlyFileExt = false, bool searchDirs = true, bool searchFiles = true, bool searchOnFullPath = false, bool caseSensitive = false, bool useIgnoreList = true, string[]? ignoreList = null, string searchPath = "*")
+		public SearchSettings(string pattern = "*.*", bool searchOnlyFileExt = false, bool searchDirs = true, bool searchFiles = true, bool searchOnFullPath = false, bool caseSensitive = false)
 		{
 			Pattern           = pattern;
 			SearchOnlyFileExt = searchOnlyFileExt;
@@ -28,9 +24,22 @@
 			SearchFiles       = searchFiles;
 			SearchOnFullPath  = searchOnFullPath;
 			CaseSensitive     = caseSensitive;
-			UseIgnoreList     = useIgnoreList;
-			IgnoreList        = ignoreList ??[];
-			SearchPath        = searchPath;
+		}
+	}
+
+	internal class SearchPathSettings
+	{
+		internal string ID { get; }
+
+		public string SearchPath { get; }
+
+		public bool UseIgnoreList { get; }
+
+		public SearchPathSettings(string id, string searchPath, bool useIgnoreList)
+		{
+			ID            = id;
+			SearchPath    = searchPath;
+			UseIgnoreList = useIgnoreList;
 		}
 	}
 }

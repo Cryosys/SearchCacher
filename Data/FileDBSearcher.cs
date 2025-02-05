@@ -1,5 +1,7 @@
 ﻿using Newtonsoft.Json;
+using static SearchCacher.ISearcher;
 using SearchCacher.Tools;
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace SearchCacher
@@ -10,37 +12,39 @@ namespace SearchCacher
 		/// <seealso cref="FileDBSearcher.CurrentSearchDir"/>
 		public event Action<string>? CurrentSearchDir;
 
-		/// <summary>	Deletes the database. </summary>
-		/// <seealso cref="FileDBSearcher.DelDB"/>
-		public void DelDB();
+		/// <summary>   Initializes the database. </summary>
+		/// <param name="path"> Full path of the search folder. </param>
+		/// <returns>   The init Task. </returns>
+		/// <seealso cref="FileDBSearcher.InitDB(List<DBConfig>)"/>
+		public Task InitDB(List<DBConfig> dbConfigs, CancellationToken globalCancellationToken);
 
 		/// <summary>   Initializes the database. </summary>
 		/// <param name="path"> Full path of the search folder. </param>
 		/// <returns>   The init Task. </returns>
-		/// <seealso cref="FileDBSearcher.InitDB(string)"/>
-		public Task InitDB(string path);
+		/// <seealso cref="FileDBSearcher.InitDB(WebDBConfigModel)"/>
+		public Task InitDB(WebDBConfigModel dbConfig);
 
 		/// <summary>   Searches for all matches for the given search settings. </summary>
 		/// <param name="settings"> Options for controlling the operation. </param>
 		/// <returns>   The search result. </returns>
 		/// <seealso cref="FileDBSearcher.Search(SearchSettings)"/>
-		public SearchResult Search(SearchSettings settings);
+		public IEnumerable<SearchResult> Search(SearchSettings settings);
 
 		/// <summary>   Adds a path. </summary>
 		/// <param name="path"> Full path to add. </param>
-		/// <seealso cref="FileDBSearcher.AddPath(string)"/>
-		public void AddPath(string path);
+		/// <seealso cref="FileDBSearcher.AddPath(string, string)"/>
+		public void AddPath(string rootPath, string path);
 
 		/// <summary>   Updates the path. </summary>
 		/// <param name="oldPath"> Full path of the old folder/file. </param>
 		/// <param name="newPath"> Full path of the new folder/file. </param>
-		/// <seealso cref="FileDBSearcher.UpdatePath(string, string)"/>
-		public void UpdatePath(string oldPath, string newPath);
+		/// <seealso cref="FileDBSearcher.UpdatePath(string, string, string)"/>
+		public void UpdatePath(string rootPath, string oldPath, string newPath);
 
 		/// <summary>   Deletes the path. </summary>
 		/// <param name="path"> Full path to remove. </param>
-		/// <seealso cref="FileDBSearcher.DeletePath(string)"/>
-		public void DeletePath(string path);
+		/// <seealso cref="FileDBSearcher.DeletePath(string, string)"/>
+		public void DeletePath(string rootPath, string path);
 
 		/// <summary>   Starts automatic save if applicable to the DB type. </summary>
 		/// <seealso cref="FileDBSearcher.StartAutoSave"/>
@@ -53,6 +57,10 @@ namespace SearchCacher
 		/// <summary>   Saves the DB if applicable to the DB type. </summary>
 		/// <seealso cref="FileDBSearcher.SaveDB"/>
 		public virtual void SaveDB() { }
+
+		/// <summary>	Deletes the database. </summary>
+		/// <seealso cref="FileDBSearcher.DelDB(string?)"/>
+		public void DelDB(string? guid);
 
 		public struct SearchResult
 		{
@@ -75,14 +83,11 @@ namespace SearchCacher
 	{
 		public event Action<string>? CurrentSearchDir;
 
-		internal readonly string DBPath;
-
 		internal long InitDirCount { get; private set; }
 		internal long InitFileCount { get; private set; }
 
-		private FileDBConfig? _config;
+		private FileDBConfig[] _configs = [];
 
-		private Dir? _DB;
 		private readonly MultiLock _dbLock = new MultiLock();
 
 		private Thread? _autosaveThread;
@@ -90,32 +95,33 @@ namespace SearchCacher
 		private readonly object _autosaveLock = new object();
 		private int _autoSaveInterval;
 
-		private bool _IsDirty = false;
-
-		public FileDBSearcher(string dbPath, int autoSaveInterval = 5)
+		public FileDBSearcher(Config serviceConfig, int autoSaveInterval = 5)
 		{
-			DBPath            = dbPath;
 			_autoSaveInterval = autoSaveInterval;
 
-			if (System.IO.File.Exists(DBPath))
+			List<FileDBConfig> configs = new List<FileDBConfig>();
+
+			foreach (var dbConfig in serviceConfig.DBConfigs)
 			{
-				// Does not load all directories, as parent looped references are ignored
-				using (FileStream fileStream = new FileStream(DBPath, FileMode.Open, FileAccess.Read))
+				if (System.IO.File.Exists(dbConfig.FileDBPath))
 				{
-					_config = JsonExtensions.FromCryJson<FileDBConfig>(fileStream) ?? new FileDBConfig();
-					_DB     = _config.DB;
+					// Does not load all directories, as parent looped references are ignored
+					using (FileStream fileStream = new FileStream(dbConfig.FileDBPath, FileMode.Open, FileAccess.Read))
+					{
+						var config = JsonExtensions.FromCryJson<FileDBConfig>(fileStream) ?? new FileDBConfig();
+						config.FileSavePath = dbConfig.FileDBPath;
+						config.IgnoreList   = dbConfig.IgnoreList;
+						configs.Add(config);
+					}
 				}
-
-				// The parent relation needs to be restored as we do not serialize looped references.
-				_RestoreParentRelation();
-
-				Program.Log($"Got {InitDirCount.ToString("#,##0")} directories and {InitFileCount.ToString("#,##0")} files");
 			}
-			else
-			{
-				_config = new FileDBConfig();
-				_DB     = _config.DB;
-			}
+
+			_configs = configs.ToArray();
+
+			// The parent relation needs to be restored as we do not serialize looped references.
+			_RestoreParentRelation();
+
+			Program.Log($"Got {InitDirCount.ToString("#,##0")} directories and {InitFileCount.ToString("#,##0")} files");
 		}
 
 		private void _RestoreParentRelation()
@@ -126,13 +132,17 @@ namespace SearchCacher
 				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not acquire master lock on file DB");
 
-				if (_config is null || _DB is null)
+				if (_configs is null)
 					return;
 
 				InitDirCount  = 0;
 				InitFileCount = 0;
 
-				Recursive(_DB);
+				List<Task> recursiveTasks = new ();
+				foreach (var config in _configs)
+					recursiveTasks.Add(Task.Run(() => Recursive(config.DB)));
+
+				Task.WaitAll(recursiveTasks);
 
 				if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not release master lock on file DB");
@@ -159,7 +169,7 @@ namespace SearchCacher
 			}
 		}
 
-		public void DelDB()
+		public void DelDB(string? guid = null)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
 			try
@@ -167,11 +177,12 @@ namespace SearchCacher
 				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not acquire master lock on file DB");
 
-				if (_config is null || _DB is null)
+				if (_configs is null)
 					return;
 
-				_config.DB = new Dir();
-				_DB        = _config.DB;
+				for (int i = 0; i < _configs.Length; i++)
+					if (guid is null || _configs[i].ID == guid)
+						_configs[i].DB = new Dir();
 
 				_SaveDB(true);
 
@@ -184,119 +195,154 @@ namespace SearchCacher
 			}
 		}
 
-		public Task InitDB(string path)
+		public Task InitDB(List<DBConfig> configs, CancellationToken globalCancellationToken)
 		{
 			return Task.Run(() =>
 			{
+				List<Task> initTasks = new();
+
+				if (!_dbLock.RequestMasterLockAsync(globalCancellationToken).Result)
+				{
+					if (globalCancellationToken.IsCancellationRequested)
+						return;
+
+					throw new Exception("Could not acquire master lock on file DB");
+				}
+
+				object countLockObj = new object();
+				InitDirCount        = 0;
+				InitFileCount       = 0;
+
 				DateTime preStartTime = DateTime.Now;
 
-				// Initiate the dir with no parent
-				CancellationTokenSource masterLockCancelSource = new CancellationTokenSource();
-				CancellationTokenSource initCancelSource       = new CancellationTokenSource();
-				try
+				_configs = new FileDBConfig[configs.Count];
+
+				for (int i = 0; i < configs.Count; i++)
 				{
-					Program.Log("Starting init");
+					DBConfig config = configs[i];
+					int index       = i;
 
-					if (!_dbLock.RequestMasterLockAsync(masterLockCancelSource.Token).Result)
-						throw new Exception("Could not acquire master lock on file DB");
-
-					_config = new FileDBConfig(path, new Dir(path, null));
-					_DB     = _config.DB;
-
-					string[] baseDirPaths = Directory.GetDirectories(path);
-					List<Task> tasks      = new List<Task>();
-					List<Dir> baseDirs    = new List<Dir>();
-
-					object countLockObj = new object();
-					InitDirCount        = 0;
-					InitFileCount       = 0;
-
-					// Here we do some simple threading where we can check multiple directories at the same time
-					// This does not consider that the root may contain only 1 folder and then splits
-					for (int i = 0; i < baseDirPaths.Length; i++)
+					initTasks.Add(Task.Run(() =>
 					{
-						string? dirName = new DirectoryInfo(baseDirPaths[i]).Name;
-						if (string.IsNullOrWhiteSpace(dirName))
-						{
-							// In this case we do not create a path for this directory and just mark it as finished, but never add it to the final dirs.
-							continue;
-						}
+						if (config is null)
+							return;
 
-						Dir dir = new Dir(dirName, _DB);
-						tasks.Add(new Task(delegate(object? val)
+						// Initiate the dir with no parent
+						CancellationTokenSource initCancelSource = new CancellationTokenSource();
+						try
 						{
+							Program.Log("Starting init for " + config.RootPath);
+
+							var dbConfig    = new FileDBConfig(config.ID, config.RootPath, config.FileDBPath, new Dir(config.RootPath, null));
+							_configs[index] = dbConfig;
+
+							string[] baseDirPaths = Directory.GetDirectories(config.RootPath);
+							List<Task> tasks      = new List<Task>();
+							List<Dir> baseDirs    = new List<Dir>();
+
+							// Here we do some simple threading where we can check multiple directories at the same time
+							// This does not consider that the root may contain only 1 folder and then splits
+							for (int i = 0; i < baseDirPaths.Length; i++)
+							{
+								string? dirName = new DirectoryInfo(baseDirPaths[i]).Name;
+								if (string.IsNullOrWhiteSpace(dirName))
+								{
+									// In this case we do not create a path for this directory and just mark it as finished, but never add it to the final dirs.
+									continue;
+								}
+
+								Dir dir = new Dir(dirName, dbConfig.DB);
+								tasks.Add(new Task(delegate(object? val)
+								{
+									try
+									{
+										(int index, Dir tmpDir) = (Tuple<int, Dir>)val;
+										long dirCount           = 0, fileCount = 0;
+										Recursive(baseDirPaths[index], tmpDir, initCancelSource.Token, ref dirCount, ref fileCount);
+
+										lock (countLockObj)
+										{
+											InitDirCount  += dirCount;
+											InitFileCount += fileCount;
+										}
+									}
+									catch (Exception ex)
+									{
+										CryLib.Core.LibTools.ExceptionManager.AddException(ex);
+										throw;
+									}
+								}, new Tuple<int, Dir>(i, dir)));
+								baseDirs.Add(dir);
+							}
+
+							foreach (Task task in tasks)
+								task.Start();
+
 							try
 							{
-								(int index, Dir tmpDir) = (Tuple<int, Dir>)val;
-								long dirCount           = 0, fileCount = 0;
-								Recursive(baseDirPaths[index], tmpDir, initCancelSource.Token, ref dirCount, ref fileCount);
+								// Before we wait for the tasks we can do some work in this thread and check the files in the base directory
+								// Now we form the actual DB
+								dbConfig.DB.Directories = baseDirs.ToArray();
 
-								lock (countLockObj)
+								string[] innerFiles = Directory.GetFiles(config.RootPath);
+								dbConfig.DB.Files   = new File[innerFiles.Length];
+								string file;
+
+								for (int i = 0; i < innerFiles.Length; i++)
 								{
-									InitDirCount  += dirCount;
-									InitFileCount += fileCount;
+									if (globalCancellationToken.IsCancellationRequested)
+										return;
+
+									file             = innerFiles[i];
+									string? fileName = Path.GetFileName(file);
+									if (string.IsNullOrWhiteSpace(fileName))
+										continue;
+
+									File fileEntry       = new File(fileName, dbConfig.DB);
+									dbConfig.DB.Files[i] = fileEntry;
 								}
 							}
 							catch (Exception ex)
 							{
 								CryLib.Core.LibTools.ExceptionManager.AddException(ex);
+								initCancelSource.Cancel();
+
+								// We still have to await the cancel.
+								// We give it a hard stop time, it should never get to this as the process to check for the cancel should be rather fast.
+								Task.WaitAll(tasks.ToArray(), 60000);
 								throw;
 							}
-						}, new Tuple<int, Dir>(i, dir)));
-						baseDirs.Add(dir);
-					}
 
-					foreach (Task task in tasks)
-						task.Start();
-
-					try
-					{
-						// Before we wait for the tasks we can do some work in this thread and check the files in the base directory
-						// Now we form the actual DB
-						_DB.Directories = baseDirs.ToArray();
-
-						string[] innerFiles = Directory.GetFiles(path);
-						_DB.Files           = new File[innerFiles.Length];
-						string file;
-
-						for (int i = 0; i < innerFiles.Length; i++)
-						{
-							file             = innerFiles[i];
-							string? fileName = Path.GetFileName(file);
-							if (string.IsNullOrWhiteSpace(fileName))
-								continue;
-
-							File fileEntry = new File(fileName, _DB);
-							_DB.Files[i]   = fileEntry;
+							Task.WaitAll(tasks.ToArray(), initCancelSource.Token);
+							_SaveDB(dbConfig, true);
 						}
-					}
-					catch (Exception ex)
-					{
-						CryLib.Core.LibTools.ExceptionManager.AddException(ex);
-						initCancelSource.Cancel();
-
-						// We still have to await the cancel.
-						// We give it a hard stop time, it should never get to this as the process to check for the cancel should be rather fast.
-						Task.WaitAll(tasks.ToArray(), 60000);
-						throw;
-					}
-
-					Task.WaitAll(tasks.ToArray(), initCancelSource.Token);
-					_SaveDB(true);
+						catch (Exception ex)
+						{
+							CryLib.Core.LibTools.ExceptionManager.AddException(ex);
+							throw;
+						}
+						finally
+						{
+							Program.Log("Finished init on " + config.RootPath);
+							initCancelSource.Dispose();
+						}
+					}));
 				}
-				catch (Exception ex)
+
+				try
 				{
-					CryLib.Core.LibTools.ExceptionManager.AddException(ex);
-					throw;
+					// We do not listen to the cancellation here as we handle it in the individual tasks
+					Task.WaitAll(initTasks);
 				}
 				finally
 				{
+					CancellationTokenSource masterLockCancelSource = new CancellationTokenSource();
+
+					// No matter what the cancellation state is, we wait for the master lock to be released
 					if (!_dbLock.ReleaseMasterLockAsync(masterLockCancelSource.Token).Result)
 						throw new Exception("Could not release master lock on file DB");
 
-					Program.Log("Finished init");
 					masterLockCancelSource.Dispose();
-					initCancelSource.Dispose();
 
 					Program.Log("DB init took: " + (DateTime.Now - preStartTime).ToString("g"));
 					Program.Log($"Got {InitDirCount.ToString("#,##0")} directories and {InitFileCount.ToString("#,##0")} files");
@@ -305,7 +351,7 @@ namespace SearchCacher
 
 			void Recursive(string newPath, Dir parentDir, CancellationToken cancelToken, ref long dirCount, ref long fileCount)
 			{
-				if (cancelToken.IsCancellationRequested)
+				if (cancelToken.IsCancellationRequested || globalCancellationToken.IsCancellationRequested)
 					return;
 
 				CurrentSearchDir?.Invoke(newPath);
@@ -356,7 +402,12 @@ namespace SearchCacher
 			}
 		}
 
-		public void AddPath(string path)
+		public Task InitDB(WebDBConfigModel webConfig)
+		{
+			return Task.CompletedTask;
+		}
+
+		public void AddPath(string rootPath, string path)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
 			bool acquiredLock                    = false;
@@ -365,10 +416,14 @@ namespace SearchCacher
 				if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
 					throw new Exception("Could not acquire master lock on file DB");
 
-				if (_config is null || _DB is null)
+				if (_configs is null || _configs.Length == 0)
 					return;
 
-				string subPath      = path.Replace(_config.RootPath, "");
+				var config = _configs.FirstOrDefault(c => c.RootPath == rootPath);
+				if (config is null)
+					return;
+
+				string subPath      = path.Replace(config.RootPath, "");
 				string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 
 				bool isFile = false;
@@ -384,7 +439,7 @@ namespace SearchCacher
 					return;
 				}
 
-				Dir curDir = _DB;
+				Dir curDir = config.DB;
 
 				// Always size - 1 as we create the file and folder entry at the end
 				// Our first step is to find the directory mapping where to add either the directory or file
@@ -414,7 +469,7 @@ namespace SearchCacher
 				else
 					curDir.Directories = curDir.Directories.Append(new Dir(pathSplits.Last(), curDir)).ToArray();
 
-				_IsDirty = true;
+				config.IsDirty = true;
 			}
 			finally
 			{
@@ -434,7 +489,7 @@ namespace SearchCacher
 			}
 		}
 
-		public void UpdatePath(string oldPath, string newPath)
+		public void UpdatePath(string rootPath, string oldPath, string newPath)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
 			bool acquiredLock                    = false;
@@ -471,14 +526,18 @@ namespace SearchCacher
 				if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
 					throw new Exception("Could not acquire master lock on file DB");
 
-				if (_config is null || _DB is null)
+				if (_configs is null || _configs.Length == 0)
 					return;
 
-				string subPath         = oldPath.Replace(_config.RootPath, "");
+				var config = _configs.FirstOrDefault(c => c.RootPath == rootPath);
+				if (config is null)
+					return;
+
+				string subPath         = oldPath.Replace(config.RootPath, "");
 				string[] pathSplits    = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 				string[] newPathSplits = newPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 
-				Dir curDir = _DB;
+				Dir curDir = config.DB;
 
 				// Always size - 1 as we create the file and folder entry at the end
 				// Our first step is to find the directory mapping where to add either the directory or file
@@ -522,7 +581,7 @@ namespace SearchCacher
 						foundDir.Name = newPathSplits.Last();
 				}
 
-				_IsDirty = true;
+				config.IsDirty = true;
 			}
 			finally
 			{
@@ -542,7 +601,7 @@ namespace SearchCacher
 			}
 		}
 
-		public void DeletePath(string path)
+		public void DeletePath(string rootPath, string path)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
 			bool acquiredLock                    = false;
@@ -551,10 +610,17 @@ namespace SearchCacher
 				if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
 					throw new Exception("Could not acquire master lock on file DB");
 
-				string subPath      = path.Replace(_config.RootPath, "");
+				if (_configs is null || _configs.Length == 0)
+					return;
+
+				var config = _configs.FirstOrDefault(c => c.RootPath == rootPath);
+				if (config is null)
+					return;
+
+				string subPath      = path.Replace(config.RootPath, "");
 				string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
 
-				Dir curDir = _DB;
+				Dir curDir = config.DB;
 
 				// Always size - 1 as we create the file and folder entry at the end
 				// Our first step is to find the directory mapping where to add either the directory or file
@@ -601,7 +667,7 @@ namespace SearchCacher
 
 				curDir.Directories = dirs.ToArray();
 
-				_IsDirty = true;
+				config.IsDirty = true;
 			}
 			finally
 			{
@@ -621,114 +687,137 @@ namespace SearchCacher
 			}
 		}
 
-		public ISearcher.SearchResult Search(SearchSettings settings)
+		public IEnumerable<ISearcher.SearchResult> Search(SearchSettings searchSettings)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
 			List<List<string>> results           = new List<List<string>>();
 			List<string> dbResults               = new List<string>();
+
+			BlockingCollection<ISearcher.SearchResult> searchResults = new BlockingCollection<ISearcher.SearchResult>();
 
 			try
 			{
 				if (!_dbLock.RequestMultiLockAsync(cancelSource.Token).Result)
 					throw new Exception("Could not acquire multi lock on file DB");
 
-				Program.Log($"search path: {settings}; pattern: {settings.Pattern}");
+				Program.Log($"search path: {searchSettings}; pattern: {searchSettings.Pattern}");
 
-				if (_config is null || _DB is null)
-					return new ISearcher.SearchResult(false, Array.Empty<string>(), "DB is not initialized");
+				if (_configs is null || _configs.Length == 0)
+					return [new ISearcher.SearchResult(false, Array.Empty<string>(), "DB is not initialized")];
 
-				Dir baseSearchDir = _DB;
+				Task[] totalSearchTasks = new Task[_configs.Length];
 
-				if (settings.SearchPath != "*")
+				for (int i = 0; i < _configs.Length; i++)
 				{
-					// Search for the directory mentioned in the search settings
-					string subPath      = settings.SearchPath.Replace(_config.RootPath, "");
-					string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
-					int searchDepth     = pathSplits.Length;
-					Dir? fittingDir;
-					for (int i = 0; i < searchDepth; i++)
+					FileDBConfig config = _configs[i];
+
+					SearchPathSettings? searchPathSettings = null;
+
+					// Only search paths that were selected
+					if ((searchPathSettings = searchSettings.SearchPaths.Find(searchPath => searchPath.ID == config.ID)) == null)
 					{
-						if ((fittingDir = baseSearchDir.Directories.FirstOrDefault(dir => dir.Name == pathSplits[i])) != null)
-						{
-							baseSearchDir = fittingDir;
-							continue;
-						}
-						else
-							return new ISearcher.SearchResult(false, Array.Empty<string>(), "Could not find base search path");
+						totalSearchTasks[i] = Task.CompletedTask;
+						continue;
 					}
-				}
 
-				Task[] searchTasks = new Task[baseSearchDir.Directories.Length];
-
-				for (int i = 0; i < baseSearchDir.Directories.Length; i++)
-				{
-					Dir dir = baseSearchDir.Directories[i];
-					results.Add(new List<string>());
-					Task searchTask = new Task(delegate(object? val)
+					totalSearchTasks[i] = Task.Run(() =>
 					{
-						if (val is null)
-							return;
+						Dir baseSearchDir = config.DB;
 
-						RecursiveSearch(dir, results[(int) val]);
-					}, i);
-
-					searchTask.Start();
-					searchTasks[i] = searchTask;
-				}
-
-				if (settings.SearchDirs)
-					foreach (var dir in baseSearchDir.Directories)
-					{
-						if (settings.UseIgnoreList)
-							if (settings.IgnoreList.Any(ignorePath => dir.FullPath == ignorePath))
-								continue;
-
-						if (settings.SearchOnFullPath)
+						if (searchPathSettings.SearchPath != "*")
 						{
-							if (Regex.IsMatch(dir.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+							// Search for the directory mentioned in the search settings
+							string subPath      = searchPathSettings.SearchPath.Replace(config.RootPath, "");
+							string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
+							int searchDepth     = pathSplits.Length;
+							Dir? fittingDir;
+							for (int i = 0; i < searchDepth; i++)
 							{
-								string fullPath = dir.FullPath;
-								if (!fullPath.EndsWith("\\"))
-									fullPath += "\\";
-
-								dbResults.Add(fullPath);
+								if ((fittingDir = baseSearchDir.Directories.FirstOrDefault(dir => dir.Name == pathSplits[i])) != null)
+								{
+									baseSearchDir = fittingDir;
+									continue;
+								}
+								else
+									searchResults.Add(new ISearcher.SearchResult(false, Array.Empty<string>(), "Could not find base search path"));
 							}
 						}
-						else if (Regex.IsMatch(dir.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+
+						Task[] configSearchTasks = new Task[baseSearchDir.Directories.Length];
+
+						for (int i = 0; i < baseSearchDir.Directories.Length; i++)
 						{
-							string fullPath = dir.FullPath;
-							if (!fullPath.EndsWith("\\"))
-								fullPath += "\\";
+							Dir dir = baseSearchDir.Directories[i];
+							results.Add(new List<string>());
+							Task searchTask = new Task(delegate(object? val)
+							{
+								if (val is null)
+									return;
 
-							dbResults.Add(fullPath);
-						}
-					}
+								RecursiveSearch(dir, results[(int) val], searchPathSettings.UseIgnoreList ? config.IgnoreList : null);
+							}, i);
 
-				if (settings.SearchFiles)
-				{
-					foreach (var file in baseSearchDir.Files)
-					{
-						if (settings.UseIgnoreList)
-							if (settings.IgnoreList.Any(ignorePath => file.FullPath == ignorePath))
-								continue;
-
-						if (settings.SearchOnlyFileExt && file.Extension == settings.Pattern)
-						{
-							dbResults.Add(file.FullPath);
-							continue;
+							searchTask.Start();
+							configSearchTasks[i] = searchTask;
 						}
 
-						if (settings.SearchOnFullPath)
+						if (searchSettings.SearchDirs)
+							foreach (var dir in baseSearchDir.Directories)
+							{
+								if (searchPathSettings.UseIgnoreList)
+									if (config.IgnoreList.Any(ignorePath => dir.FullPath == ignorePath))
+										continue;
+
+								if (searchSettings.SearchOnFullPath)
+								{
+									if (Regex.IsMatch(dir.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+									{
+										string fullPath = dir.FullPath;
+										if (!fullPath.EndsWith("\\"))
+											fullPath += "\\";
+
+										dbResults.Add(fullPath);
+									}
+								}
+								else if (Regex.IsMatch(dir.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+								{
+									string fullPath = dir.FullPath;
+									if (!fullPath.EndsWith("\\"))
+										fullPath += "\\";
+
+									dbResults.Add(fullPath);
+								}
+							}
+
+						if (searchSettings.SearchFiles)
 						{
-							if (Regex.IsMatch(file.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-								dbResults.Add(file.FullPath);
+							foreach (var file in baseSearchDir.Files)
+							{
+								if (searchPathSettings.UseIgnoreList)
+									if (config.IgnoreList.Any(ignorePath => file.FullPath == ignorePath))
+										continue;
+
+								if (searchSettings.SearchOnlyFileExt && file.Extension == searchSettings.Pattern)
+								{
+									dbResults.Add(file.FullPath);
+									continue;
+								}
+
+								if (searchSettings.SearchOnFullPath)
+								{
+									if (Regex.IsMatch(file.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+										dbResults.Add(file.FullPath);
+								}
+								else if (Regex.IsMatch(file.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+									dbResults.Add(file.FullPath);
+							}
 						}
-						else if (Regex.IsMatch(file.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-							dbResults.Add(file.FullPath);
-					}
+
+						Task.WaitAll(configSearchTasks, TimeSpan.FromMinutes(10));
+					});
 				}
 
-				Task.WaitAll(searchTasks, TimeSpan.FromMinutes(3));
+				Task.WaitAll(totalSearchTasks, TimeSpan.FromMinutes(10));
 			}
 			finally
 			{
@@ -744,20 +833,28 @@ namespace SearchCacher
 			foreach (var result in results)
 				combinedList.AddRange(result);
 
-			return new ISearcher.SearchResult(true, combinedList.ToArray());
+			ISearcher.SearchResult[] returnResults = new ISearcher.SearchResult[combinedList.Count > 0 ? searchResults.Count + 1 : searchResults.Count];
+			for (int i = 0; i < searchResults.Count; i++)
+				if (searchResults.TryTake(out SearchResult result))
+					returnResults[i] = result;
 
-			void RecursiveSearch(Dir curDir, List<string> foundFiles)
+			if (combinedList.Count > 0)
+				returnResults[returnResults.Length - 1] = new ISearcher.SearchResult(true, combinedList.ToArray());
+
+			return returnResults;
+
+			void RecursiveSearch(Dir curDir, List<string> foundFiles, List<string>? ignoreList)
 			{
 				foreach (var dir in curDir.Directories)
 				{
-					if (settings.UseIgnoreList)
-						if (settings.IgnoreList.Any(ignorePath => dir.FullPath == ignorePath))
+					if (ignoreList is not null)
+						if (ignoreList.Any(ignorePath => dir.FullPath == ignorePath))
 							continue;
 
-					if (settings.SearchDirs && !settings.SearchOnlyFileExt)
-						if (settings.SearchOnFullPath)
+					if (searchSettings.SearchDirs && !searchSettings.SearchOnlyFileExt)
+						if (searchSettings.SearchOnFullPath)
 						{
-							if (Regex.IsMatch(dir.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+							if (Regex.IsMatch(dir.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 							{
 								string fullPath = dir.FullPath;
 								if (!fullPath.EndsWith("\\"))
@@ -766,7 +863,7 @@ namespace SearchCacher
 								foundFiles.Add(fullPath);
 							}
 						}
-						else if (Regex.IsMatch(dir.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+						else if (Regex.IsMatch(dir.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 						{
 							string fullPath = dir.FullPath;
 							if (!fullPath.EndsWith("\\"))
@@ -775,28 +872,28 @@ namespace SearchCacher
 							foundFiles.Add(fullPath);
 						}
 
-					RecursiveSearch(dir, foundFiles);
+					RecursiveSearch(dir, foundFiles, ignoreList);
 				}
 
-				if (settings.SearchFiles)
+				if (searchSettings.SearchFiles)
 					foreach (var file in curDir.Files)
 					{
-						if (settings.UseIgnoreList)
-							if (settings.IgnoreList.Any(ignorePath => file.FullPath == ignorePath))
+						if (ignoreList is not null)
+							if (ignoreList.Any(ignorePath => file.FullPath == ignorePath))
 								continue;
 
-						if (settings.SearchOnlyFileExt && file.Extension == settings.Pattern)
+						if (searchSettings.SearchOnlyFileExt && file.Extension == searchSettings.Pattern)
 						{
 							foundFiles.Add(file.FullPath);
 							continue;
 						}
 
-						if (settings.SearchOnFullPath)
+						if (searchSettings.SearchOnFullPath)
 						{
-							if (Regex.IsMatch(file.FullPath, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+							if (Regex.IsMatch(file.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 								foundFiles.Add(file.FullPath);
 						}
-						else if (Regex.IsMatch(file.Name, settings.Pattern, settings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+						else if (Regex.IsMatch(file.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 							foundFiles.Add(file.FullPath);
 					}
 			}
@@ -842,11 +939,14 @@ namespace SearchCacher
 				{
 					Task.Delay(TimeSpan.FromMinutes(_autoSaveInterval), _autosaveCancellationTokenSource.Token).Wait(_autosaveCancellationTokenSource.Token);
 
-					if (!_IsDirty)
-						continue;
+					foreach (var config in _configs)
+					{
+						if (!config.IsDirty)
+							continue;
 
-					_SaveDB();
-					_IsDirty = false;
+						_SaveDB();
+						config.IsDirty = false;
+					}
 				}
 			}
 			catch (OperationCanceledException)
@@ -859,7 +959,7 @@ namespace SearchCacher
 			}
 		}
 
-		private void _SaveDB(bool parentHasMaster = false)
+		private void _SaveDB(bool parentHasMaster = false, bool force = false)
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
 			try
@@ -870,8 +970,39 @@ namespace SearchCacher
 					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
 						throw new Exception("Could not acquire master lock on file DB");
 
-				using (FileStream fileStream = new FileStream(DBPath, FileMode.Create, FileAccess.ReadWrite))
-					JsonExtensions.ToCryJson(_config, fileStream);
+				foreach (var config in _configs)
+					if (config.IsDirty || force)
+						using (FileStream fileStream = new FileStream(config.FileSavePath, FileMode.Create, FileAccess.ReadWrite))
+							JsonExtensions.ToCryJson(config, fileStream);
+			}
+			catch (Exception ex)
+			{
+				CryLib.Core.LibTools.ExceptionManager.AddException(ex);
+			}
+			finally
+			{
+				if (!parentHasMaster)
+					if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+						throw new Exception("Could not release master lock on file DB");
+
+				Program.Log("Saved DB");
+				cancelSource.Dispose();
+			}
+		}
+
+		private void _SaveDB(FileDBConfig config, bool parentHasMaster = false)
+		{
+			CancellationTokenSource cancelSource = new CancellationTokenSource();
+			try
+			{
+				Program.Log("Saving DB -> " + config.RootPath);
+
+				if (!parentHasMaster)
+					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
+						throw new Exception("Could not acquire master lock on file DB");
+
+				using (FileStream fileStream = new FileStream(config.FileSavePath, FileMode.Create, FileAccess.ReadWrite))
+					JsonExtensions.ToCryJson(config, fileStream);
 			}
 			catch (Exception ex)
 			{
@@ -891,22 +1022,45 @@ namespace SearchCacher
 		[JsonObject("FileDBConfig")]
 		private class FileDBConfig
 		{
+			[JsonProperty("ID")]
+			internal string ID { get; init; }
+
 			[JsonProperty("RootPath")]
-			internal string RootPath;
+
+			/// <summary> Gets or sets the root path of the search folder. </summary>
+			internal string RootPath { get; set; }
 
 			[JsonProperty("DB")]
-			internal Dir DB;
+			/// <summary> Gets or sets the root directory functioning as the database. </summary>
+			internal Dir DB { get; set; }
+
+			[JsonIgnore]
+
+			/// <summary> Gets or sets a value indicating whether this object is dirty and needs to be saved. </summary>
+			internal bool IsDirty { get; set; } = false;
+
+			/// <summary> Gets or sets a value indicating where this object should be serialized and saved to. </summary>
+			[JsonIgnore]
+			internal string FileSavePath { get; set; }
+
+			/// <summary> Gets or sets a lists of paths to ignore while searching. </summary>
+			[JsonIgnore]
+			internal List<string> IgnoreList { get; set; } = [];
 
 			public FileDBConfig()
 			{
-				RootPath = string.Empty;
-				DB       = new Dir();
+				ID           = Guid.NewGuid().ToString();
+				RootPath     = string.Empty;
+				FileSavePath = string.Empty;
+				DB           = new Dir();
 			}
 
-			public FileDBConfig(string rootPath, Dir db)
+			public FileDBConfig(string guid, string rootPath, string fileSavePath, Dir db)
 			{
-				RootPath = rootPath;
-				DB       = db;
+				ID           = guid;
+				RootPath     = rootPath;
+				FileSavePath = fileSavePath;
+				DB           = db;
 			}
 		}
 	}

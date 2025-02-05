@@ -16,7 +16,8 @@ namespace SearchCacher
 		private static Watchdog? _dog;
 		private static AdaptiveLogHandler<LogTypes> _logHandler = new AdaptiveLogHandler<LogTypes>(Path.Combine(Paths.AppPath, "Logs"));
 
-		private static bool _newConfigSet = false;
+		private static bool _newConfigSet     = false;
+		private static Config? _serviceConfig = null;
 
 		public static void Main(string[] args)
 		{
@@ -42,41 +43,45 @@ namespace SearchCacher
 				System.IO.File.WriteAllText(ConfigPath, new Config().ToCryJson());
 			}
 
-			Config? cfg = System.IO.File.ReadAllText(ConfigPath).FromCryJson<Config>();
+			_serviceConfig = System.IO.File.ReadAllText(ConfigPath).FromCryJson<Config>();
 
 			// We only init the network share and watchdog if the config is valid
-			NetworkShareConnector? shareConnector = null;
+			List<NetworkShareConnector> shareConnectors = [];
 
-			if (cfg is null)
+			if (_serviceConfig is null)
 				throw new Exception("Config is invalid, fix or delete it");
 
-			if (string.IsNullOrWhiteSpace(cfg.SearchPath))
+			if (_serviceConfig.DBConfigs.Count == 0)
 			{
 				Log("Config.cfg SearchPath has to be filled with a valid path");
 				_service = new DummySearchService();
 			}
 			else
 			{
-				// We only need the share if the path is a network path and if the configs user is set
-				if (cfg.SearchPath.StartsWith(@"\\") && !string.IsNullOrWhiteSpace(cfg.UserName))
-				{
-					// Split the domain and username
-					string[] usernameSplit = cfg.UserName.Split(@"\", StringSplitOptions.RemoveEmptyEntries);
-					if (usernameSplit.Length == 1)
-						// In case there is not domain we use an empty string
-						usernameSplit = ["", usernameSplit[0]];
-
-					NetworkCredential xCred = new NetworkCredential(usernameSplit[1], cfg.Password, usernameSplit[0]);
-
-					shareConnector = new NetworkShareConnector(cfg.SearchPath, xCred);
-					_              = Directory.GetDirectories(cfg.SearchPath);
-				}
-
 				_dog          = new Watchdog();
 				_dog.Watched += Dog_Watched;
-				_dog.Init(cfg);
 
-				_service = new SearchService(cfg);
+				foreach (var cfg in _serviceConfig.DBConfigs)
+				{
+					// We only need the share if the path is a network path and if the configs user is set
+					if (cfg.RootPath.StartsWith(@"\\") && !string.IsNullOrWhiteSpace(cfg.UserName))
+					{
+						// Split the domain and username
+						string[] usernameSplit = cfg.UserName.Split(@"\", StringSplitOptions.RemoveEmptyEntries);
+						if (usernameSplit.Length == 1)
+							// In case there is not domain we use an empty string
+							usernameSplit = ["", usernameSplit[0]];
+
+						NetworkCredential xCred = new NetworkCredential(usernameSplit[1], cfg.Password, usernameSplit[0]);
+
+						shareConnectors.Add(new NetworkShareConnector(cfg.RootPath, xCred));
+						_ = Directory.GetDirectories(cfg.RootPath);
+					}
+
+					_dog.AddWatcher(cfg.RootPath);
+				}
+
+				_service = new SearchService(_serviceConfig);
 			}
 
 			var builder = WebApplication.CreateBuilder(new WebApplicationOptions()
@@ -191,7 +196,9 @@ namespace SearchCacher
 			else if (System.IO.File.Exists(ConfigPath))
 				_service.DelDB();
 
-			shareConnector?.Dispose();
+			foreach (var shareConnector in shareConnectors)
+				shareConnector?.Dispose();
+
 			_logHandler.StopHandler();
 		}
 
@@ -201,6 +208,18 @@ namespace SearchCacher
 		{
 			try
 			{
+				if (_serviceConfig is not null)
+				{
+					foreach (var dbConfig in _serviceConfig.DBConfigs)
+					{
+						var config = cfg.DBConfigs.Find(x => x.ID == dbConfig.ID);
+
+						// In case the password it empty we take the old one
+						if (config is not null && string.IsNullOrWhiteSpace(config.Password))
+							config.Password = dbConfig.Password;
+					}
+				}
+
 				System.IO.File.WriteAllText(ConfigPath, cfg.ToCryJson());
 				if (forceDBDelete)
 					_newConfigSet = true;
@@ -250,26 +269,32 @@ namespace SearchCacher
 			// and we have to do the updates one after another
 			try
 			{
+				if (_service is null)
+				{
+					Log("Service is null, but we got watchdog events, something is wrong...");
+					return;
+				}
+
 				switch (data.ChangeType)
 				{
 					case WatcherChangeTypes.Created:
 					{
-						_service.AddPath(data.FullPath);
+						_service.AddPath(data.SearchPath, data.FullPath);
 						break;
 					}
 					case WatcherChangeTypes.Deleted:
 					{
-						_service.DeletePath(data.FullPath);
+						_service.DeletePath(data.SearchPath, data.FullPath);
 						break;
 					}
 					case WatcherChangeTypes.Renamed:
 					{
-						_service.UpdatePath(data.OldFullPath, data.FullPath);
+						_service.UpdatePath(data.SearchPath, data.OldFullPath, data.FullPath);
 						break;
 					}
 					default:
 					{
-						Program.Log($"Got changetype: {data.ChangeType}, we do nothing in this case");
+						Log($"Got changetype: {data.ChangeType}, we do nothing in this case");
 						break;
 					}
 				}

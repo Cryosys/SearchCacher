@@ -1,3 +1,5 @@
+using static SearchCacher.ISearcher;
+
 namespace SearchCacher.Data
 {
 	internal interface ISearchService
@@ -8,19 +10,17 @@ namespace SearchCacher.Data
 
 		bool AllowOnlyLocalSettingsAccess();
 
-		Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings);
+		Task<IEnumerable<SearchResult>> GetSearchResult(SearchSettings settings);
 
-		string[] GetIgnoreList();
+		Task InitDB(CancellationToken token);
 
-		Task InitDB();
+		void DelDB(string? searchPath = null);
 
-		void DelDB();
+		void AddPath(string searchPath, string path);
 
-		void AddPath(string path);
+		void UpdatePath(string searchPath, string oldPath, string newPath);
 
-		void UpdatePath(string oldPath, string newPath);
-
-		void DeletePath(string path);
+		void DeletePath(string searchPath, string path);
 
 		void SaveDB();
 
@@ -28,28 +28,28 @@ namespace SearchCacher.Data
 
 		WebConfigModel GetWebConfigModel();
 
-		void SetIgnoreList(List<string> ignoreList);
+		string[] GetIgnoreList(WebDBConfigModel cfg);
+
+		bool SetIgnoreList(string guid, List<string> ignoreList);
 	}
 
 	internal class DummySearchService : ISearchService
 	{
-		public string SearchPath => string.Empty;
+		public string SearchPath => "";
 
 		public bool AllowOnlyLocalSettingsAccess() => false;
 
-		public Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings) => Task<ISearcher.SearchResult>.FromResult(new ISearcher.SearchResult(false, Array.Empty<string>(), "Cannot run search, searcher not initialized. Most likely because of an invalid config"));
+		public Task<IEnumerable<SearchResult>> GetSearchResult(SearchSettings settings) => Task.FromResult<IEnumerable<SearchResult>>([new ISearcher.SearchResult(false, Array.Empty<string>(), "Cannot run search, searcher not initialized. Most likely because of an invalid config")]);
 
-		public string[] GetIgnoreList() => [];
+		public Task InitDB(CancellationToken token) => Task.CompletedTask;
 
-		public Task InitDB() => Task.CompletedTask;
+		public void DelDB(string? searchPath) { }
 
-		public void DelDB() { }
+		public void AddPath(string searchPath, string path) { }
 
-		public void AddPath(string path) { }
+		public void UpdatePath(string searchPath, string oldPath, string newPath) { }
 
-		public void UpdatePath(string oldPath, string newPath) { }
-
-		public void DeletePath(string path) { }
+		public void DeletePath(string searchPath, string path) { }
 
 		public void SaveDB() { }
 
@@ -57,7 +57,9 @@ namespace SearchCacher.Data
 
 		public WebConfigModel GetWebConfigModel() => new WebConfigModel(new Config());
 
-		public void SetIgnoreList(List<string> ignoreList) { }
+		public string[] GetIgnoreList(WebDBConfigModel cfg) => [];
+
+		public bool SetIgnoreList(string guid, List<string> ignoreList) => true;
 	}
 
 	internal class SearchService : ISearchService
@@ -65,7 +67,7 @@ namespace SearchCacher.Data
 		static List<WeakReference<Action<string>>> currentSearchDirChangedHandlers = new List<WeakReference<Action<string>>>();
 		static object handlerLock = new object();
 
-		public string SearchPath => _cfg?.SearchPath ?? string.Empty;
+		public string SearchPath => string.Join(",", _cfg?.DBConfigs.Select(x => "\"" + x.RootPath + "\"").ToArray() ??[]);
 
 		private ISearcher _searchHandler;
 		private Config _cfg;
@@ -74,8 +76,10 @@ namespace SearchCacher.Data
 		{
 			_cfg = cfg;
 
-			// _searchHandler                   = new SearchHandler(_cfg.ConnectionString);
-			_searchHandler                   = new FileDBSearcher(_cfg.FileDBPath ?? Path.Combine(CryLib.Core.Paths.ExecuterPath, "fileDB"), cfg.AutoSaveInterval);
+			if (_cfg.DBConfigs.Count == 0)
+				_cfg.DBConfigs.Add(new DBConfig() { RootPath = Path.Combine(CryLib.Core.Paths.ExecuterPath, "fileDB") });
+
+			_searchHandler                   = new FileDBSearcher(_cfg, cfg.AutoSaveInterval);
 			_searchHandler.CurrentSearchDir += _searchHandler_CurrentSearchDir;
 
 			if (cfg.AutoSaveEnabled)
@@ -84,19 +88,19 @@ namespace SearchCacher.Data
 
 		public bool AllowOnlyLocalSettingsAccess() => _cfg.AllowOnlyLocalSettingsAccess;
 
-		public Task<ISearcher.SearchResult> GetSearchResult(SearchSettings settings) => Task.FromResult(_searchHandler.Search(settings));
+		public Task<IEnumerable<SearchResult>> GetSearchResult(SearchSettings settings) => Task.FromResult(_searchHandler.Search(settings));
 
-		public string[] GetIgnoreList() => _cfg.IgnoreList.ToArray();
+		public Task InitDB(CancellationToken token) => _searchHandler.InitDB(_cfg.DBConfigs, token);
 
-		public Task InitDB() => _searchHandler.InitDB(_cfg.SearchPath);
+		public Task InitDB(WebDBConfigModel dbConfig) => _searchHandler.InitDB(dbConfig);
 
-		public void DelDB() => _searchHandler.DelDB();
+		public void DelDB(string? guid) => _searchHandler.DelDB(guid);
 
-		public void AddPath(string path) => _searchHandler.AddPath(path);
+		public void AddPath(string searchPath, string path) => _searchHandler.AddPath(searchPath, path);
 
-		public void UpdatePath(string oldPath, string newPath) => _searchHandler.UpdatePath(oldPath, newPath);
+		public void UpdatePath(string searchPath, string oldPath, string newPath) => _searchHandler.UpdatePath(searchPath, oldPath, newPath);
 
-		public void DeletePath(string path) => _searchHandler.DeletePath(path);
+		public void DeletePath(string searchPath, string path) => _searchHandler.DeletePath(searchPath, path);
 
 		public void SaveDB() => _searchHandler.SaveDB();
 
@@ -104,10 +108,17 @@ namespace SearchCacher.Data
 
 		public WebConfigModel GetWebConfigModel() => new WebConfigModel(_cfg);
 
-		public void SetIgnoreList(List<string> ignoreList)
+		public string[] GetIgnoreList(WebDBConfigModel cfg) => cfg.IgnoreList.ToArray();
+
+		public bool SetIgnoreList(string guid, List<string> ignoreList)
 		{
-			_cfg.IgnoreList = ignoreList;
+			var config = _cfg.DBConfigs.Find(x => x.ID == guid);
+			if (config is null)
+				return false;
+
+			config.IgnoreList = ignoreList;
 			Program.SetNewConfig(_cfg, false);
+			return true;
 		}
 
 		internal static void SubscribeToCurrentSearchDir(Action<string> callback)

@@ -5,6 +5,7 @@
 @using Syncfusion.Blazor.Inputs
 @using Syncfusion.Blazor.Notifications
 @using Syncfusion.Blazor.Spinner;
+@using System.Collections.ObjectModel
 @inject ISearchService SearchService
 
 @if (!IsValidUser())
@@ -24,25 +25,25 @@
     </thead>
     <tbody>
         <tr>
-            <td>Search Path:</td>
+            <td>Root Path:</td>
             <td>
-                <SfTextBox Multiline="false" @bind-Value="Cfg.SearchPath" style="min-width:400px" />
+                <SfTextBox Multiline="false" @bind-Value="newCfg.RootPath" style="min-width:400px" />
             </td>
             <td>
-                The search path is the actual path to the root directory of the storage you want to search through. <br />
+                The root path is the actual path to the root directory of the storage you want to search through. <br />
                 E.g. '\\some.storage.net\some root path\folder to search in'. Do not escape the path like this -> '\\\\some.storage.net\\some root path\\folder to search in'
             </td>
         </tr>
         <tr>
             <td>Username:</td>
             <td>
-                <SfTextBox Multiline="false" @bind-Value="Cfg.UserName" style="min-width:400px" />
+                <SfTextBox Multiline="false" @bind-Value="newCfg.UserName" style="min-width:400px" />
             </td>
         </tr>
         <tr>
             <td>Password:</td>
             <td>
-                <SfTextBox Multiline="false" @bind-Value="Cfg.Password" style="min-width:400px" />
+                <SfTextBox Multiline="false" @bind-Value="newCfg.Password" style="min-width:400px" />
             </td>
             <td>
                 <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
@@ -68,7 +69,7 @@
         <tr>
             <td>Watchdog files filter:</td>
             <td>
-                <SfTextBox Multiline="false" @bind-Value="Cfg.WatchDogFilter" style="min-width:400px" />
+                <SfTextBox Multiline="false" @bind-Value="newCfg.WatchDogFilter" style="min-width:400px" />
             </td>
             <td>
                 Info about the filter can be found here: <a href="https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher.filter?view=net-8.0" target="_blank" class="a-text">.NET FileSystemWatcher</a>
@@ -77,7 +78,7 @@
         <tr>
             <td>File DB path:</td>
             <td>
-                <SfTextBox Multiline="false" @bind-Value="Cfg.FileDBPath" style="min-width:400px" />
+                <SfTextBox Multiline="false" @bind-Value="newCfg.FileDBPath" style="min-width:400px" />
             </td>
             <td>
                 The file DB can become a large file and should be, if possible, stored on a storage media that is not going to break fast. <br />
@@ -103,6 +104,7 @@
 <br />
 
 <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
+    <SfButton style="margin:5px" @onclick=AddConfig>Add/Update Path</SfButton>
     <SfButton style="margin:5px" @onclick=SetConfig>Save Config</SfButton>
     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" style="margin:10px">
         <g fill="none" stroke="#fb6f6f" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
@@ -123,6 +125,40 @@
     </div>
 </div>
 
+<div style="background:#232E3E;border:solid #232E3E;border-width:thick">
+    @foreach (WebDBConfigModel dbConfig in Cfg.DBConfigs)
+    {
+        <div style="background:#34455d;margin:4pt">
+            <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
+                <SfButton style="margin:5px" @onclick="@(e => newCfg = dbConfig)">Edit</SfButton>
+                <div style="margin-left:10px">@dbConfig.RootPath</div>
+                <SfButton style="margin:5px;align-items:flex-end" @onclick="@(e => RemoveConfig(dbConfig.ID))">Remove</SfButton>
+            </div>
+            <div style="display:flex;flex-direction:row;text-align:center;align-items:center;margin:3px">
+                <SfButton style="margin-right:5px;margin-bottom:5px;margin-top:5px" @onclick=@(e => SaveIgnoreList(dbConfig))>Save List</SfButton>
+                <SfTextBox Multiline="false" @bind-Value="@(dbConfig.IgnorePathToAdd)" style="min-width:300px" />
+                <SfButton style="margin-left:5px;margin-bottom:5px;margin-top:5px" @onclick=@(e => AddIgnorepath(dbConfig))>Add</SfButton>
+            </div>
+            <div style="align-items:start">
+                <SfGrid TValue="string" DataSource="@dbConfig.IgnoreList" AllowSorting="true" EnableVirtualization="true" Height="100" EnableInfiniteScrolling="true" AllowSelection="false">
+                    <GridColumns>
+                        <GridColumn HeaderText="Ignored Paths" IsPrimaryKey="true">
+                            <Template>
+                                @{
+                                    <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
+                                        <SfButton @onclick="@(e => DeleteIgnoreListEntry(dbConfig, context as string))">Delete</SfButton>
+                                        <div style="margin-left:10px">@(context as string)</div>
+                                    </div>
+                                }
+                            </Template>
+                        </GridColumn>
+                    </GridColumns>
+                </SfGrid>
+            </div>
+        </div>
+    }
+</div>
+
 <br />
 
 <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
@@ -137,29 +173,6 @@
 <br />
 @currentDir
 <br />
-
-<div style="display:flex;flex-direction:row;text-align:center;align-items:center">
-    <SfButton style="margin-right:5px;margin-bottom:5px;margin-top:5px" @onclick=SaveIgnoreList>Save List</SfButton>
-    <SfTextBox Multiline="false" @bind-Value="@ignorePathToAdd" style="min-width:400px" />
-    <SfButton style="margin-left:5px;margin-bottom:5px;margin-top:5px" @onclick=AddIgnorepath>Add</SfButton>
-</div>
-
-<div style="align-items:start">
-    <SfGrid TValue="string" DataSource="@Cfg.IgnoreList" AllowSorting="true" EnableVirtualization="true" Height="480" EnableInfiniteScrolling="true" AllowSelection="false">
-        <GridColumns>
-            <GridColumn HeaderText="Ignored Paths" IsPrimaryKey="true">
-                <Template>
-                    @{
-                        <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
-                            <SfButton @onclick="@(e => DeleteIgnoreListEntry(context as string))">Delete</SfButton>
-                            <div style="margin-left:10px">@(context as string)</div>
-                        </div>
-                    }
-                </Template>
-            </GridColumn>
-        </GridColumns>
-    </SfGrid>
-</div>
 
 <style>
     .a-text:visited {
@@ -178,7 +191,9 @@
     private string currentDir { get; set; } = "";
     private string ignorePathToAdd { get; set; } = "";
 
-    WebConfigModel Cfg;
+    private WebConfigModel? Cfg { get; set; } = null;
+
+    private WebDBConfigModel newCfg { get; set; } = new WebDBConfigModel();
 
     protected override void OnInitialized()
     {
@@ -195,8 +210,52 @@
         });
     }
 
+    protected void AddConfig()
+    {
+        if (Cfg is null)
+        {
+            ShowToast("Could not get config, please reload the site...");
+            return;
+        }
+        else if (Cfg.DBConfigs.Any(x => x.ID == newCfg.ID))
+        {
+            // We just found it with any, it cannot be null on find
+            Cfg.DBConfigs.Remove(Cfg.DBConfigs.Find(x => x.ID == newCfg.ID)!);
+            Cfg.DBConfigs.Add(newCfg);
+            ShowToast("Search path updated...");
+            return;
+        }
+
+        Cfg.DBConfigs.Add(newCfg);
+        newCfg = new WebDBConfigModel();
+    }
+
+    protected void RemoveConfig(string? guid)
+    {
+        if (Cfg is null)
+        {
+            ShowToast("Could not get config, please reload the site...");
+            return;
+        }
+
+        var dbConfig = Cfg.DBConfigs.Find(x => x.ID == guid);
+        if (dbConfig is null)
+        {
+            ShowToast("Could not find search path in DB...");
+            return;
+        }
+
+        Cfg.DBConfigs.Remove(dbConfig);
+    }
+
     protected void SetConfig()
     {
+        if (Cfg is null)
+        {
+            ShowToast("Could not get config, please reload the site...");
+            return;
+        }
+
         ShowToast("Setting Config...");
         Program.SetNewConfig(Cfg);
         ShowToast("Done. Restart Service to apply Config");
@@ -206,7 +265,8 @@
     {
         IsSpinnerVisible = true;
         ShowToast("Initiating DB...");
-        Task initDBTask = SearchService.InitDB();
+        var cancelSource = new CancellationTokenSource();
+        Task initDBTask = SearchService.InitDB(cancelSource.Token);
         await initDBTask;
 
         if (initDBTask.Status != TaskStatus.RanToCompletion)
@@ -239,11 +299,52 @@
         IsSpinnerVisible = false;
     }
 
+    private protected void SaveIgnoreList(WebDBConfigModel dbConfig)
+    {
+        if (string.IsNullOrWhiteSpace(dbConfig.RootPath))
+        {
+            ShowToast("Search path for DB config is invalid, please reconfigure it!");
+            return;
+        }
+
+        ShowToast("Saving Ignore List...");
+        SearchService.SetIgnoreList(dbConfig.ID, dbConfig.IgnoreList.ToList());
+        ShowToast("Done");
+    }
+
     protected void SaveIgnoreList()
     {
+        if (string.IsNullOrWhiteSpace(newCfg.RootPath))
+        {
+            ShowToast("Search path for DB config is invalid, please reconfigure it!");
+            return;
+        }
+
         ShowToast("Saving Ignore List...");
-        SearchService.SetIgnoreList(Cfg.IgnoreList.ToList());
+        SearchService.SetIgnoreList(newCfg.ID, newCfg.IgnoreList.ToList());
         ShowToast("Done");
+    }
+
+    private protected async void AddIgnorepath(WebDBConfigModel dbConfig)
+    {
+        if (string.IsNullOrWhiteSpace(dbConfig.IgnorePathToAdd))
+        {
+            ShowToast("Path is empty...");
+            return;
+        }
+
+        while (dbConfig.IgnorePathToAdd.EndsWith("\\"))
+            dbConfig.IgnorePathToAdd = dbConfig.IgnorePathToAdd.Substring(0, dbConfig.IgnorePathToAdd.Length - 1);
+
+        if (!dbConfig.IgnoreList.Contains(dbConfig.IgnorePathToAdd))
+        {
+            dbConfig.IgnoreList.Add(dbConfig.IgnorePathToAdd);
+            await Task.Delay(100);
+            ShowToast("Added path");
+            StateHasChanged();
+        }
+        else
+            ShowToast("Path already in ignore list");
     }
 
     protected async void AddIgnorepath()
@@ -257,9 +358,9 @@
         while (ignorePathToAdd.EndsWith("\\"))
             ignorePathToAdd = ignorePathToAdd.Substring(0, ignorePathToAdd.Length - 1);
 
-        if (!Cfg.IgnoreList.Contains(ignorePathToAdd))
+        if (!newCfg.IgnoreList.Contains(ignorePathToAdd))
         {
-            Cfg.IgnoreList.Add(ignorePathToAdd);
+            newCfg.IgnoreList.Add(ignorePathToAdd);
             await Task.Delay(100);
             ShowToast("Added path");
             StateHasChanged();
@@ -268,12 +369,21 @@
             ShowToast("Path already in ignore list");
     }
 
+    private protected void DeleteIgnoreListEntry(WebDBConfigModel dbConfig, string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            return;
+
+        dbConfig.IgnoreList.Remove(path);
+        StateHasChanged();
+    }
+
     protected void DeleteIgnoreListEntry(string? path)
     {
         if (string.IsNullOrWhiteSpace(path))
             return;
 
-        Cfg.IgnoreList.Remove(path);
+        newCfg.IgnoreList.Remove(path);
         StateHasChanged();
     }
 

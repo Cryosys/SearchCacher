@@ -34,7 +34,6 @@
                                 <tr><td><SfSwitch @bind-Checked="data.searchDirs" /></td><td>Directories</td></tr>
                                 <tr><td><SfSwitch @bind-Checked="data.searchFiles" /></td><td>Files</td></tr>
                                 <tr><td><SfSwitch @bind-Checked="data.caseSensitive" /></td><td>Case sensitive search</td></tr>
-                                <tr><td><SfSwitch @bind-Checked="data.useIgnoreList" /></td><td>Use ignore list</td></tr>
                             </tbody>
                         </table>
                     </ContentTemplate>
@@ -67,19 +66,41 @@
 
     <SfAccordion Width="auto" LoadOnDemand="false">
         <AccordionItems>
-            <AccordionItem Header="Ignore List" Expanded="false">
+            <AccordionItem Header="Path List" Expanded="false">
                 <ContentTemplate>
-                    <SfGrid TValue="string" DataSource="@data.ignoreList" AllowSorting="true" EnableVirtualization="true" Height="480" EnableInfiniteScrolling="true" AllowSelection="false">
-                        <GridColumns>
-                            <GridColumn HeaderText="Ignored Paths" IsPrimaryKey="true">
-                                <Template>
-                                    @{
-                                        <div>@(context as string)</div>
-                                    }
-                                </Template>
-                            </GridColumn>
-                        </GridColumns>
-                    </SfGrid>
+                    <div style="background:#232E3E;border:solid #232E3E;border-width:thick">
+                        @foreach (WebDBConfigModel dbConfig in data.Cfg?.DBConfigs ?? [])
+                        {
+                            <div style="display:flex;flex-direction:column;background:#34455d;margin:4pt">
+                                <div style="display:flex;flex-direction:row;text-align:center;align-items:center;min-height:34px;margin-left:10px;margin-right:10px">
+                                    <SfSwitch @bind-Checked="dbConfig.IsSelected" /> <span style="margin-left:10px;margin-right:20px;width:auto;white-space:nowrap">Use in search?</span>
+                                    <SfSwitch @bind-Checked="dbConfig.UseIgnoreList" /><span style="margin-left:10px;white-space:nowrap">Use ignore list?</span>
+                                    <span style="margin-left:20px;margin-right:20px;white-space:nowrap">@dbConfig.RootPath</span>
+                                    <span style="margin-right:5px;width:auto;white-space:nowrap">Search path:</span>
+                                    <SfTextBox Multiline="false" @bind-Value="dbConfig.SearchPath" style="min-width:200px" @onkeyup="@PatternTextBoxKeyUp" />
+                                </div>
+                                <div style="align-items:start">
+                                    <SfAccordion Width="auto" LoadOnDemand="false">
+                                        <AccordionItems>
+                                            <AccordionItem Header="Ignored Paths List" Expanded="false">
+                                                <ContentTemplate>
+                                                    <SfGrid TValue="string" DataSource="@dbConfig.IgnoreList" AllowSorting="true" EnableVirtualization="true" Height="100" EnableInfiniteScrolling="true" AllowSelection="false">
+                                                        <GridColumns>
+                                                            <GridColumn IsPrimaryKey="true">
+                                                                <Template>
+                                                                    <div style="margin-left:10px">@(context as string)</div>
+                                                                </Template>
+                                                            </GridColumn>
+                                                        </GridColumns>
+                                                    </SfGrid>
+                                                </ContentTemplate>
+                                            </AccordionItem>
+                                        </AccordionItems>
+                                    </SfAccordion>
+                                </div>
+                            </div>
+                        }
+                    </div>
                 </ContentTemplate>
             </AccordionItem>
         </AccordionItems>
@@ -90,8 +111,6 @@
     </div>
 
     <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
-        <span style="margin-right:5px;width:auto;white-space:nowrap">Search path:</span>
-        <SfTextBox Multiline="false" @bind-Value="data.searchPath" style="min-width:400px" @onkeyup="@PatternTextBoxKeyUp" />
         <span style="margin-left:5px;margin-right:5px">Pattern:</span>
         <SfTextBox Multiline="false" Placeholder="*nua*" @bind-Value="data.pattern" style="min-width:400px" @onkeyup="@PatternTextBoxKeyUp" />
         <SfButton style="margin:5px" @onclick=Search>Search</SfButton>
@@ -120,13 +139,13 @@
 
 <script>
     async function copyClipboard(text) {
-        console.log(text);
+    console.log(text);
 
-        try {
-            await navigator.clipboard.writeText(text);
-        } catch (error) {
-            console.error(error.message);
-        }
+    try {
+    await navigator.clipboard.writeText(text);
+    } catch (error) {
+    console.error(error.message);
+    }
     }
 </script>
 
@@ -141,7 +160,7 @@
 
         public string pattern { get; set; } = "nua*";
 
-        public Task<ISearcher.SearchResult>? searchTask;
+        public Task<IEnumerable<ISearcher.SearchResult>>? searchTask;
 
         [Required]
         [Range(typeof(bool), "false", "true")]
@@ -165,19 +184,11 @@
 
         [Required]
         [Range(typeof(bool), "false", "true")]
-        public bool useIgnoreList { get; set; } = true;
-
-        [Required]
-        public string[] ignoreList { get; set; } = [];
-
-        [Required]
-        public string searchPath { get; set; } = "*";
-
-        [Required]
-        [Range(typeof(bool), "false", "true")]
         public bool SpinnerVisible { get; set; } = false;
 
         public string? lastSearchTime { get; set; } = null;
+
+        public WebConfigModel? Cfg { get; set; } = null;
     }
 
     FormData data = new FormData();
@@ -196,7 +207,7 @@
     {
         base.OnInitialized();
 
-        data.ignoreList = searchService.GetIgnoreList();
+        data.Cfg = searchService.GetWebConfigModel();
     }
 
     protected async Task Search()
@@ -230,7 +241,17 @@
         data.Paths = null;
 
         DateTime preSearch = DateTime.Now;
-        data.searchTask = searchService.GetSearchResult(new SearchSettings(data.pattern, data.searchOnlyFileExt, data.searchDirs, data.searchFiles, data.searchOnFullPath, data.caseSensitive, data.useIgnoreList, data.ignoreList, data.searchPath));
+
+        // Prepare list of paths to be used
+        var searchSettings = new SearchSettings(data.pattern, data.searchOnlyFileExt, data.searchDirs, data.searchFiles, data.searchOnFullPath, data.caseSensitive);
+
+        foreach (var config in data.Cfg?.DBConfigs ?? [])
+        {
+            if (config.IsSelected)
+                searchSettings.SearchPaths.Add(new SearchPathSettings(config.ID ?? string.Empty, config.SearchPath, config.UseIgnoreList));
+        }
+
+        data.searchTask = searchService.GetSearchResult(searchSettings);
         await data.searchTask;
         if (data.searchTask.Status != TaskStatus.RanToCompletion)
         {
@@ -239,18 +260,23 @@
             return;
         }
 
-        ISearcher.SearchResult result = data.searchTask.Result;
+        IEnumerable<ISearcher.SearchResult> results = data.searchTask.Result;
 
         data.lastSearchTime = (DateTime.Now - preSearch).ToString(@"mm\:ss\:ffff", new System.Globalization.CultureInfo("en-US"));
         data.IsSpinnerVisible = false;
-        data.Paths = result.Result;
         data.searchTask = null;
 
+        foreach (var result in results)
+        {
+            await Task.Delay(100);
+            if (!result.Success)
+                ShowToast(result.Error, 10000);
+            else
+                data.Paths = result.Result;
+        }
+
         await Task.Delay(100);
-        if (!result.Success)
-            ShowToast(result.Error, 10000);
-        else
-            ShowToast("Finished search");
+        ShowToast("Finished search");
     }
 
     protected async void ShowToast(string info, int timeout = 5000)
@@ -289,7 +315,16 @@
                 return;
             }
 
-            data.searchPath = Path.GetDirectoryName(entries.First()) ?? "";
+            var dirName = Path.GetDirectoryName(entries.First()) ?? "";
+
+            foreach (var config in data.Cfg?.DBConfigs ?? [])
+            {
+                if (dirName.Contains(config.SearchPath))
+                {
+                    config.SearchPath = dirName;
+                    break;
+                }
+            }
         }
         else
             foreach (var entry in entries)
