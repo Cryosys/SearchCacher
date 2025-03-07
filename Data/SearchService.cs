@@ -28,9 +28,9 @@ namespace SearchCacher.Data
 
 		WebConfigModel GetWebConfigModel();
 
-		string[] GetIgnoreList(WebDBConfigModel cfg);
+		IgnoreListEntry[] GetIgnoreList(WebDBConfigModel cfg);
 
-		bool SetIgnoreList(string guid, List<string> ignoreList);
+		bool SetIgnoreList(string guid, List<IgnoreListEntry> ignoreList);
 	}
 
 	internal class DummySearchService : ISearchService
@@ -57,9 +57,9 @@ namespace SearchCacher.Data
 
 		public WebConfigModel GetWebConfigModel() => new WebConfigModel(new Config());
 
-		public string[] GetIgnoreList(WebDBConfigModel cfg) => [];
+		public IgnoreListEntry[] GetIgnoreList(WebDBConfigModel cfg) => [];
 
-		public bool SetIgnoreList(string guid, List<string> ignoreList) => true;
+		public bool SetIgnoreList(string guid, List<IgnoreListEntry> ignoreList) => true;
 	}
 
 	internal class SearchService : ISearchService
@@ -108,9 +108,9 @@ namespace SearchCacher.Data
 
 		public WebConfigModel GetWebConfigModel() => new WebConfigModel(_cfg);
 
-		public string[] GetIgnoreList(WebDBConfigModel cfg) => cfg.IgnoreList.ToArray();
+		public IgnoreListEntry[] GetIgnoreList(WebDBConfigModel cfg) => cfg.IgnoreList.ToArray();
 
-		public bool SetIgnoreList(string guid, List<string> ignoreList)
+		public bool SetIgnoreList(string guid, List<IgnoreListEntry> ignoreList)
 		{
 			var config = _cfg.DBConfigs.Find(x => x.ID == guid);
 			if (config is null)

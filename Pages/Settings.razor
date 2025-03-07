@@ -140,14 +140,14 @@
                 <SfButton style="margin-left:5px;margin-bottom:5px;margin-top:5px" @onclick=@(e => AddIgnorepath(dbConfig))>Add</SfButton>
             </div>
             <div style="align-items:start">
-                <SfGrid TValue="string" DataSource="@dbConfig.IgnoreList" AllowSorting="true" EnableVirtualization="true" Height="100" EnableInfiniteScrolling="true" AllowSelection="false">
+                <SfGrid TValue="IgnoreListEntry" DataSource="@dbConfig.IgnoreList" AllowSorting="true" EnableVirtualization="true" Height="100" EnableInfiniteScrolling="true" AllowSelection="false">
                     <GridColumns>
                         <GridColumn HeaderText="Ignored Paths" IsPrimaryKey="true">
                             <Template>
                                 @{
                                     <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
-                                        <SfButton @onclick="@(e => DeleteIgnoreListEntry(dbConfig, context as string))">Delete</SfButton>
-                                        <div style="margin-left:10px">@(context as string)</div>
+                                        <SfButton @onclick="@(e => DeleteIgnoreListEntry(dbConfig, (context as IgnoreListEntry)?.Path))">Delete</SfButton>
+                                        <div style="margin-left:10px">@((context as IgnoreListEntry)?.Path)</div>
                                     </div>
                                 }
                             </Template>
@@ -176,9 +176,9 @@
 
 <style>
     .a-text:visited {
-        color: deepskyblue;
-        background-color: transparent;
-        text-decoration: none;
+    color: deepskyblue;
+    background-color: transparent;
+    text-decoration: none;
     }
 </style>
 
@@ -336,9 +336,9 @@
         while (dbConfig.IgnorePathToAdd.EndsWith("\\"))
             dbConfig.IgnorePathToAdd = dbConfig.IgnorePathToAdd.Substring(0, dbConfig.IgnorePathToAdd.Length - 1);
 
-        if (!dbConfig.IgnoreList.Contains(dbConfig.IgnorePathToAdd))
+        if (!dbConfig.IgnoreList.Any(entry => entry.Path == dbConfig.IgnorePathToAdd))
         {
-            dbConfig.IgnoreList.Add(dbConfig.IgnorePathToAdd);
+            dbConfig.IgnoreList.Add(new (dbConfig.IgnorePathToAdd));
             await Task.Delay(100);
             ShowToast("Added path");
             StateHasChanged();
@@ -358,9 +358,9 @@
         while (ignorePathToAdd.EndsWith("\\"))
             ignorePathToAdd = ignorePathToAdd.Substring(0, ignorePathToAdd.Length - 1);
 
-        if (!newCfg.IgnoreList.Contains(ignorePathToAdd))
+        if (!newCfg.IgnoreList.Any(entry => entry.Path == ignorePathToAdd))
         {
-            newCfg.IgnoreList.Add(ignorePathToAdd);
+            newCfg.IgnoreList.Add(new (ignorePathToAdd));
             await Task.Delay(100);
             ShowToast("Added path");
             StateHasChanged();
@@ -374,7 +374,11 @@
         if (string.IsNullOrWhiteSpace(path))
             return;
 
-        dbConfig.IgnoreList.Remove(path);
+        IgnoreListEntry? entry = dbConfig.IgnoreList.FirstOrDefault(entry => entry.Path == path);
+        if (entry is null)
+            return;
+
+        dbConfig.IgnoreList.Remove(entry);
         StateHasChanged();
     }
 
@@ -383,7 +387,11 @@
         if (string.IsNullOrWhiteSpace(path))
             return;
 
-        newCfg.IgnoreList.Remove(path);
+        IgnoreListEntry? entry = newCfg.IgnoreList.FirstOrDefault(entry => entry.Path == path);
+        if (entry is null)
+            return;
+
+        newCfg.IgnoreList.Remove(entry);
         StateHasChanged();
     }
 

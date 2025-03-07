@@ -59,7 +59,7 @@ namespace SearchCacher
 		/// Gets or sets the list of paths to ignore in the search.
 		/// </summary>
 		[JsonProperty("IgnoreList")]
-		internal List<string> IgnoreList { get; set; } = [];
+		internal List<IgnoreListEntry> IgnoreList { get; set; } = [];
 
 		/// <summary>
 		/// Gets or sets the full path of the database file.
@@ -170,7 +170,7 @@ namespace SearchCacher
 		/// <summary>
 		/// Gets or sets the paths to ignore.
 		/// </summary>
-		internal ObservableCollection<string> IgnoreList { get; set; } = [];
+		internal ObservableCollection<IgnoreListEntry> IgnoreList { get; set; } = [];
 
 		/// <summary>
 		/// Gets or sets the path to add to the ignore list.

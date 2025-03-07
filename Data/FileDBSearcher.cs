@@ -2,6 +2,8 @@
 using static SearchCacher.ISearcher;
 using SearchCacher.Tools;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace SearchCacher
@@ -127,6 +129,7 @@ namespace SearchCacher
 		private void _RestoreParentRelation()
 		{
 			CancellationTokenSource cancelSource = new CancellationTokenSource();
+
 			try
 			{
 				if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
@@ -138,7 +141,7 @@ namespace SearchCacher
 				InitDirCount  = 0;
 				InitFileCount = 0;
 
-				List<Task> recursiveTasks = new ();
+				List<Task> recursiveTasks = new();
 				foreach (var config in _configs)
 					recursiveTasks.Add(Task.Run(() => Recursive(config.DB)));
 
@@ -157,6 +160,7 @@ namespace SearchCacher
 				foreach (var dir in parentDir.Directories)
 				{
 					dir.Parent = parentDir;
+					dir.Hash   = BitConverter.ToInt64(MD5.HashData(Encoding.Unicode.GetBytes(dir.FullPath)));
 					Recursive(dir);
 				}
 
@@ -749,6 +753,15 @@ namespace SearchCacher
 						{
 							Dir dir = baseSearchDir.Directories[i];
 							results.Add(new List<string>());
+
+							if (searchPathSettings.UseIgnoreList)
+								if (config.IgnoreList.Any(ignorePath => ignorePath.Hash == dir.Hash))
+								{
+									// Skip ignored path
+									configSearchTasks[i] = Task.CompletedTask;
+									continue;
+								}
+
 							Task searchTask = new Task(delegate(object? val)
 							{
 								if (val is null)
@@ -765,7 +778,7 @@ namespace SearchCacher
 							foreach (var dir in baseSearchDir.Directories)
 							{
 								if (searchPathSettings.UseIgnoreList)
-									if (config.IgnoreList.Any(ignorePath => dir.FullPath == ignorePath))
+									if (config.IgnoreList.Any(ignorePath => ignorePath.Hash == dir.Hash))
 										continue;
 
 								if (searchSettings.SearchOnFullPath)
@@ -794,7 +807,7 @@ namespace SearchCacher
 							foreach (var file in baseSearchDir.Files)
 							{
 								if (searchPathSettings.UseIgnoreList)
-									if (config.IgnoreList.Any(ignorePath => file.FullPath == ignorePath))
+									if (config.IgnoreList.Any(ignorePath => ignorePath.Hash == file.Hash))
 										continue;
 
 								if (searchSettings.SearchOnlyFileExt && file.Extension == searchSettings.Pattern)
@@ -843,12 +856,12 @@ namespace SearchCacher
 
 			return returnResults;
 
-			void RecursiveSearch(Dir curDir, List<string> foundFiles, List<string>? ignoreList)
+			void RecursiveSearch(Dir curDir, List<string> foundFiles, List<IgnoreListEntry>? ignoreList)
 			{
 				foreach (var dir in curDir.Directories)
 				{
 					if (ignoreList is not null)
-						if (ignoreList.Any(ignorePath => dir.FullPath == ignorePath))
+						if (ignoreList.Any(ignorePath => ignorePath.Hash == dir.Hash))
 							continue;
 
 					if (searchSettings.SearchDirs && !searchSettings.SearchOnlyFileExt)
@@ -879,7 +892,7 @@ namespace SearchCacher
 					foreach (var file in curDir.Files)
 					{
 						if (ignoreList is not null)
-							if (ignoreList.Any(ignorePath => file.FullPath == ignorePath))
+							if (ignoreList.Any(ignorePath => ignorePath.Hash == file.Hash))
 								continue;
 
 						if (searchSettings.SearchOnlyFileExt && file.Extension == searchSettings.Pattern)
@@ -1045,7 +1058,7 @@ namespace SearchCacher
 
 			/// <summary> Gets or sets a lists of paths to ignore while searching. </summary>
 			[JsonIgnore]
-			internal List<string> IgnoreList { get; set; } = [];
+			internal List<IgnoreListEntry> IgnoreList { get; set; } = [];
 
 			public FileDBConfig()
 			{
@@ -1062,6 +1075,28 @@ namespace SearchCacher
 				FileSavePath = fileSavePath;
 				DB           = db;
 			}
+		}
+	}
+
+	[JsonObject("IgnoreListEntry")]
+	internal class IgnoreListEntry
+	{
+		[JsonProperty("Path")]
+		internal string Path { get; set; }
+
+		[JsonProperty("Hash")]
+		internal long Hash { get; set; }
+
+		public IgnoreListEntry()
+		{
+			Path = "";
+			Hash = 0;
+		}
+
+		public IgnoreListEntry(string path)
+		{
+			Path = path;
+			Hash = BitConverter.ToInt64(MD5.HashData(Encoding.Unicode.GetBytes(path)));
 		}
 	}
 
@@ -1088,18 +1123,21 @@ namespace SearchCacher
 			}
 		}
 
+		[JsonIgnore]
+		internal long Hash
+		{
+			get;
+			set;
+		}
+
 		[JsonProperty("Directories")]
-		#if LARGEARRAY_DEBUG
-			internal CryLib.Core.LargeArray<Dir> Directories = new CryLib.Core.LargeArray<Dir>(0);
-		#else
-			internal Dir[] Directories = Array.Empty<Dir>();
-		#endif
+		internal Dir[] Directories { get; set; } = Array.Empty<Dir>();
 
 		[JsonProperty("Files")]
-		internal File[] Files = Array.Empty<File>();
+		internal File[] Files { get; set; } = Array.Empty<File>();
 
 		[JsonProperty("Parent")]
-		internal Dir? Parent;
+		internal Dir? Parent { get; set; }
 
 		public Dir()
 		{
@@ -1109,6 +1147,12 @@ namespace SearchCacher
 		{
 			Name   = orgName;
 			Parent = parentDir;
+			Hash   = BitConverter.ToInt64(MD5.HashData(Encoding.Unicode.GetBytes(FullPath)));
+		}
+
+		public override string ToString()
+		{
+			return FullPath;
 		}
 	}
 
@@ -1124,6 +1168,12 @@ namespace SearchCacher
 		[JsonIgnore]
 		internal string FullPath => Path.Combine(Parent.FullPath, Name);
 
+		internal long Hash
+		{
+			get;
+			set;
+		}
+
 		[JsonProperty("Parent")]
 		internal Dir Parent;
 
@@ -1138,6 +1188,7 @@ namespace SearchCacher
 			Name      = name;
 			Parent    = parent;
 			Extension = Path.GetExtension(name);
+			Hash      = BitConverter.ToInt64(MD5.HashData(Encoding.Unicode.GetBytes(FullPath)));
 		}
 	}
 }

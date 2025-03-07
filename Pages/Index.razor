@@ -84,11 +84,11 @@
                                         <AccordionItems>
                                             <AccordionItem Header="Ignored Paths List" Expanded="false">
                                                 <ContentTemplate>
-                                                    <SfGrid TValue="string" DataSource="@dbConfig.IgnoreList" AllowSorting="true" EnableVirtualization="true" Height="100" EnableInfiniteScrolling="true" AllowSelection="false">
+                                                    <SfGrid TValue="IgnoreListEntry" DataSource="@dbConfig.IgnoreList" AllowSorting="true" EnableVirtualization="true" Height="100" EnableInfiniteScrolling="true" AllowSelection="false">
                                                         <GridColumns>
                                                             <GridColumn IsPrimaryKey="true">
                                                                 <Template>
-                                                                    <div style="margin-left:10px">@(context as string)</div>
+                                                                    <div style="margin-left:10px">@((context as IgnoreListEntry)?.Path)</div>
                                                                 </Template>
                                                             </GridColumn>
                                                         </GridColumns>
@@ -156,7 +156,7 @@
 
         public bool IsSpinnerVisible { get; set; } = false;
 
-        public string?[]? Paths { get; set; } = null;
+        public List<string?> Paths { get; set; } = [];
 
         public string pattern { get; set; } = "nua*";
 
@@ -238,7 +238,7 @@
         ShowToast("Starting search...");
         data.IsSpinnerVisible = true;
         await Task.Delay(100);
-        data.Paths = null;
+        data.Paths = [];
 
         DateTime preSearch = DateTime.Now;
 
@@ -272,7 +272,7 @@
             if (!result.Success)
                 ShowToast(result.Error, 10000);
             else
-                data.Paths = result.Result;
+                data.Paths.AddRange(result.Result);
         }
 
         await Task.Delay(100);
