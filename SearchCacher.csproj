@@ -13,9 +13,13 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<Compile Remove="SearchCacher.PerformanceTests\**" />
 		<Compile Remove="SearchCacher.UnitTests\**" />
+		<Content Remove="SearchCacher.PerformanceTests\**" />
 		<Content Remove="SearchCacher.UnitTests\**" />
+		<EmbeddedResource Remove="SearchCacher.PerformanceTests\**" />
 		<EmbeddedResource Remove="SearchCacher.UnitTests\**" />
+		<None Remove="SearchCacher.PerformanceTests\**" />
 		<None Remove="SearchCacher.UnitTests\**" />
 	</ItemGroup>
 
