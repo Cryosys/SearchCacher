@@ -1,4 +1,5 @@
 using CryLib.Core;
+using Microsoft.Extensions.Hosting.Internal;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using SearchCacher.Data;
 using Syncfusion.Blazor;
@@ -39,9 +40,7 @@ namespace SearchCacher
 			Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(SecretsConfig.License);
 
 			if (!System.IO.File.Exists(ConfigPath))
-			{
 				System.IO.File.WriteAllText(ConfigPath, new Config().ToCryJson());
-			}
 
 			_serviceConfig = System.IO.File.ReadAllText(ConfigPath).FromCryJson<Config>();
 
@@ -165,6 +164,46 @@ namespace SearchCacher
 
 			var app = builder.Build();
 
+			// Register a shutdown callback so that we can stop all services and save the DB.
+			// We only really only need this register if the service runs as a windows service.
+			// For a web service doing everything after the run would be fine timeout wise.
+			// Windows Services however have a stop timeout which we need to request more time for when saving the DB.
+
+			if (WindowsServiceHelpers.IsWindowsService())
+				app.Lifetime.ApplicationStopping.Register(() =>
+				{
+					Console.WriteLine("Stopping service...");
+
+					_dog?.Stop();
+					_service.CleanUp();
+
+					Console.WriteLine("Done clean-up");
+
+					// Request more time for the service to stop,
+					// we need it to save the DB. We just request 3 minutes, but it will stop sooner if the service returns sooner.
+					WindowsServiceLifetime? winServiceLifeTime = app.Services.GetService(typeof(WindowsServiceLifetime)) as WindowsServiceLifetime;
+					if (winServiceLifeTime is not null)
+						winServiceLifeTime.RequestAdditionalTime(TimeSpan.FromMinutes(3));
+
+					Console.WriteLine("Saving DB");
+
+					// Save the DB just in case
+					if (!_newConfigSet)
+						_service.SaveDB();
+					else if (System.IO.File.Exists(ConfigPath))
+						_service.DelDB();
+
+					Console.WriteLine("Saved DB");
+
+					foreach (var shareConnector in shareConnectors)
+						shareConnector?.Dispose();
+
+					Console.WriteLine("Disposed connectors");
+					_logHandler.StopHandler();
+					Console.WriteLine("Stopped logger");
+					app.Lifetime.StopApplication();
+				});
+
 			if (useHttpsRedirect)
 				app.UseHttpsRedirection();
 			// app.Urls.Add($"https://*:{sslPort}");
@@ -186,6 +225,11 @@ namespace SearchCacher
 
 			// This call blocks the main thread
 			app.Run();
+
+			if (WindowsServiceHelpers.IsWindowsService())
+				return;
+
+			Log("Stopping service...");
 
 			_dog?.Stop();
 			_service.CleanUp();
