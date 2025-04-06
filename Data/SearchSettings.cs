@@ -2,28 +2,34 @@
 {
 	internal class SearchSettings
 	{
-		public string Pattern { get; set; } = "*.*";
+		public string Pattern { get; set; }
 
-		public bool SearchOnlyFileExt { get; set; } = false;
+		public bool SearchOnlyFileExt { get; set; }
 
-		public bool SearchOnFullPath { get; set; } = false;
+		public bool SearchInFiles { get; set; }
 
-		public bool SearchDirs { get; set; } = true;
+		public bool SearchOnFullPath { get; set; }
 
-		public bool SearchFiles { get; set; } = true;
+		public bool SearchDirs { get; set; }
 
-		public bool CaseSensitive { get; set; } = false;
+		public bool SearchFiles { get; set; }
+
+		public bool CaseSensitive { get; set; }
+
+		public string[] FileExtensions { get; } = [];
 
 		public List<SearchPathSettings> SearchPaths { get; } = [];
 
-		public SearchSettings(string pattern = "*.*", bool searchOnlyFileExt = false, bool searchDirs = true, bool searchFiles = true, bool searchOnFullPath = false, bool caseSensitive = false)
+		public SearchSettings(string pattern = "*.*", bool searchOnlyFileExt = false, bool searchInFiles = false, bool searchDirs = true, bool searchFiles = true, bool searchOnFullPath = false, bool caseSensitive = false, string[]? fileExtensions = null)
 		{
 			Pattern           = pattern;
 			SearchOnlyFileExt = searchOnlyFileExt;
+			SearchInFiles     = searchInFiles;
 			SearchDirs        = searchDirs;
 			SearchFiles       = searchFiles;
 			SearchOnFullPath  = searchOnFullPath;
 			CaseSensitive     = caseSensitive;
+			FileExtensions    = fileExtensions ??[];
 		}
 	}
 

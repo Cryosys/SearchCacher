@@ -1,11 +1,13 @@
 ﻿@page "/"
-@using SearchCacher.Data
-@using System.ComponentModel.DataAnnotations
+@using SearchCacher.Data;
+@using System.ComponentModel.DataAnnotations;
 @using Syncfusion.Blazor.Buttons;
 @using Syncfusion.Blazor.Grids
 @using Syncfusion.Blazor.Navigations;
 @using Syncfusion.Blazor.Inputs;
-@using Syncfusion.Blazor.Notifications
+@using Syncfusion.Blazor.Notifications;
+@using Syncfusion.Blazor.Popups;
+@using System.Collections.ObjectModel;
 @inject ISearchService searchService
 @inject IJSRuntime JSRuntime
 
@@ -23,7 +25,6 @@
                     <th style="color:#00B4F0;font-size:medium;font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;padding-top:10px;padding-left:15px">Settings</th>
                     <th style="color:#00B4F0;font-size:medium;font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;padding-top:10px;padding-left:10px">Info</th>
                 </tr>
-
             </thead>
             <tbody>
                 <tr>
@@ -31,16 +32,138 @@
                         <table style="margin:10px;white-space:nowrap">
                             <thead>
                                 <tr>
+                                    <th style="padding-right:30px"></th>
                                     <th style="padding-right:30px">Status</th>
                                     <th>Setting</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr><td><SfSwitch @bind-Checked="data.searchOnlyFileExt" /></td><td>Only search in extensions</td></tr>
-                                <tr><td><SfSwitch @bind-Checked="data.searchOnFullPath" /></td><td>Search on full path</td></tr>
-                                <tr><td><SfSwitch @bind-Checked="data.searchDirs" /></td><td>Directories</td></tr>
-                                <tr><td><SfSwitch @bind-Checked="data.searchFiles" /></td><td>Files</td></tr>
-                                <tr><td><SfSwitch @bind-Checked="data.caseSensitive" /></td><td>Case sensitive search</td></tr>
+                                <tr>
+                                    <td>
+                                        <SfTooltip Target="#searchOnlyFileExtIcon" Content="Searches only in file extensions and ignores all other settings" Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <svg id="searchOnlyFileExtIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                    </path>
+                                                </g>
+                                            </svg>
+                                        </SfTooltip>
+                                    </td>
+                                    <td><SfSwitch style="margin-top:3px" @bind-Checked="data.SearchOnlyFileExt" /></td>
+                                    <td>Only search in extensions</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <SfTooltip Target="#searchInFilesIcon" Content="Searches in file content, this can take a VERY long time depending on the amount of data. Searches only in files which extension was selected below." Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <svg id="searchInFilesIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                    </path>
+                                                </g>
+                                            </svg>
+                                        </SfTooltip>
+                                    </td>
+                                    <td><SfSwitch style="margin-top:3px" @bind-Checked="data.SearchInFiles" /></td>
+                                    <td>Search in files</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <SfTooltip Target="#searchOnFullPathIcon" Content="Contrary to the regular search which only considers directory and file names, this feature uses the full path of the directory and files. This allowes for more complex searches like finding some folders containing the text tax and then maybe a date for example." Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <svg id="searchOnFullPathIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                    </path>
+                                                </g>
+                                            </svg>
+                                        </SfTooltip>
+                                    </td>
+                                    <td><SfSwitch style="margin-top:3px" @bind-Checked="data.SearchOnFullPath" /></td>
+                                    <td>Search on full path</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <SfTooltip Target="#searchForDirsIcon" Content="Searches in directory names for results" Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <svg id="searchForDirsIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                    </path>
+                                                </g>
+                                            </svg>
+                                        </SfTooltip>
+                                    </td>
+                                    <td><SfSwitch style="margin-top:3px" @bind-Checked="data.SearchForDirs" /></td>
+                                    <td>Directories</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <SfTooltip Target="#searchForFilesIcon" Content="Searches in files for results. This feature is required by some other features to work. Other features will enable required features automatically." Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <svg id="searchForFilesIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                    </path>
+                                                </g>
+                                            </svg>
+                                        </SfTooltip>
+                                    </td>
+                                    <td><SfSwitch style="margin-top:3px" @bind-Checked="data.SearchForFiles" /></td>
+                                    <td>Files</td>
+                                </tr>
+                                <tr>
+                                    <td>
+                                        <SfTooltip Target="#caseSensitiveIcon" Content="The search will ignore text case if disabled." Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <svg id="caseSensitiveIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                    </path>
+                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                    </path>
+                                                </g>
+                                            </svg>
+                                        </SfTooltip>
+                                    </td>
+                                    <td><SfSwitch style="margin-top:3px" @bind-Checked="data.CaseSensitive" /></td>
+                                    <td>Case sensitive search</td>
+                                </tr>
                             </tbody>
                         </table>
                     </td>
@@ -48,10 +171,8 @@
                         <div style="font-size:15px">
                             Enabling only extensions makes the search absolut. Meaning that only the specified extension will be searched for. <br />
                             Example: You want to search for all txt files. Input only .txt in the search box, all other settings do not matter.<br />
-                            @* <s>
-                        The pattern is relative, meaning that '.txt' will only find a file for example that does not have a name and ends with '.txt'. Entering '*.txt' however will search for all files ending with '.txt'. <br />
-                        Entering 'nua*' will search for all files and folders containing the char set 'nua' at any point in the name. Like Manual -> Ma*nua*l.
-                        </s> *@
+                            <br />
+                            Enabling search in files will search in the content of the files, but only in files with the selected extensions <br />
                             <br />
                             The search pattern is Regex based. <a href="https://regex101.com/" target="_blank">You can test and generate regex patterns here.</a><br />
                             Tl:dr; writing only a word, for example 'test' will find all paths involing this word, regardless of upper or lower case and anywhere in the path. <br />
@@ -68,6 +189,26 @@
 
     <SfAccordion Width="auto" LoadOnDemand="false">
         <AccordionItems>
+            <AccordionItem @ref="data.FileExtensionsAccordionItem" Header="File Extensions" Expanded="@data.FileExtensionsAccordionItemExpanded" Visible=@data.SearchInFiles>
+                <ContentTemplate>
+                    <div style="background:#232E3E;border:solid #232E3E;border-width:thick">
+                        <div style="display:flex;flex-direction:column;background:#34455d;margin:4pt">
+                            <div style="display:flex;flex-direction:row;text-align:center;align-items:center;min-height:34px;margin-left:10px;margin-right:10px">
+                                <SfButton @onclick="() => AddFileExtension(TextFileExtensions)">Add Text Extensions</SfButton>
+                                <SfButton @onclick="() => AddFileExtension(CodingFileExtensions)">Add Coding Extensions</SfButton>
+                                <SfTextBox Multiline="false" @bind-Value="data.CustomExt" style="margin-left:20px;width:200px" Width="200px" />
+                                <SfButton @onclick="() => AddFileExtension([data.CustomExt])">Add Custom Extensions</SfButton>
+                            </div>
+                            <div style="margin:10px;display:flex;flex-direction:row;flex-wrap:wrap">
+                                @foreach (FileExtensionEntry entry in data.FileExtensions)
+                                {
+                                    <div style="margin-right:3px"><SfSwitch style="margin-top:5px" @bind-Checked="entry.IsSelected" /> <label style="padding: 3px;justify-content: center;"> @entry.Name</label></div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </ContentTemplate>
+            </AccordionItem>
             <AccordionItem Header="Path List" Expanded="false">
                 <ContentTemplate>
                     <div style="background:#232E3E;border:solid #232E3E;border-width:thick">
@@ -79,7 +220,7 @@
                                     <SfSwitch @bind-Checked="dbConfig.UseIgnoreList" /><span style="margin-left:10px;white-space:nowrap">Use ignore list?</span>
                                     <span style="margin-left:20px;margin-right:20px;white-space:nowrap">@dbConfig.RootPath</span>
                                     <span style="margin-right:5px;width:auto;white-space:nowrap">Search path:</span>
-                                    <SfTextBox Multiline="false" @bind-Value="dbConfig.SearchPath" style="min-width:200px" @onkeyup="@PatternTextBoxKeyUp" />
+                                    <SfTextBox Multiline="false" @bind-Value="dbConfig.SearchPath" style="min-width:200px" />
                                 </div>
                                 <div style="align-items:start">
                                     <SfAccordion Width="auto" LoadOnDemand="false">
@@ -110,15 +251,22 @@
     <br />
 
     <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
-    </div>
-
-    <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
         <span style="margin-left:5px;margin-right:5px">Pattern:</span>
-        <SfTextBox Multiline="false" Placeholder="*nua*" @bind-Value="data.pattern" style="min-width:400px" @onkeyup="@PatternTextBoxKeyUp" />
-        <SfButton style="margin:5px" @onclick=Search>Search</SfButton>
-        <div style="position:relative;width:50px;margin:5px">
-            <SfSpinner Size="20" @bind-Visible="@data.IsSpinnerVisible" />
+        <SfTextBox Multiline="false" Placeholder="*nua*" @bind-Value="data.Pattern" style="min-width:400px" @onkeyup="@PatternTextBoxKeyUp" />
+        <div style="position:relative;width:50px;margin:5px;display:@data.SpinnerDisplayMode;visibility:@data.SpinnerVisibility">
+            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24">
+                <g fill="none" stroke="#64a0e8" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
+                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M12 3c4.97 0 9 4.03 9 9">
+                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.3s" values="16;0" />
+                        <animateTransform attributeName="transform" dur="1.5s" repeatCount="indefinite" type="rotate" values="0 12 12;360 12 12" />
+                    </path>
+                    <path stroke-dasharray="64" stroke-dashoffset="64" stroke-opacity="0.3" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="1.2s" values="64;0" />
+                    </path>
+                </g>
+            </svg>
         </div>
+        <SfButton style="margin:5px" @onclick=Search>Search</SfButton>
     </div>
 
     <SfGrid @ref="FileGrid" TValue="string" DataSource="@data.Paths" AllowSorting="true" ContextMenuItems="@FileGridContextMenuItems" EnableVirtualization="true" Height="800">
@@ -136,7 +284,7 @@
     </SfGrid>
 
     <br />
-    Last search time @data.lastSearchTime min:sec:ms
+    Last search time @data.LastSearchTime min:sec:ms
 </div>
 
 <script>
@@ -154,48 +302,137 @@
 @code {
     class FormData
     {
-        public SfToast ToastObj;
+        public SfToast? ToastObj;
+        public AccordionItem? FileExtensionsAccordionItem;
 
+        public bool FileExtensionsAccordionItemExpanded { get; set; } = false;
         public bool IsSpinnerVisible { get; set; } = false;
 
+        public string SpinnerVisibility { get; set; } = "collapse";
+        public string SpinnerDisplayMode { get; set; } = "none";
+
         public List<string?> Paths { get; set; } = [];
+        public string Pattern { get; set; } = "nua*";
 
-        public string pattern { get; set; } = "nua*";
-
-        public Task<IEnumerable<ISearcher.SearchResult>>? searchTask;
-
-        [Required]
-        [Range(typeof(bool), "false", "true")]
-        public bool searchOnlyFileExt { get; set; } = false;
+        public Task<IEnumerable<ISearcher.SearchResult>>? SearchTask;
 
         [Required]
         [Range(typeof(bool), "false", "true")]
-        public bool searchOnFullPath { get; set; } = false;
+        public bool SearchOnlyFileExt
+        {
+            get => _searchOnlyFileExt;
+            set
+            {
+                _searchOnlyFileExt = value;
+                if (value)
+                {
+                    FileExtensionsAccordionItemExpanded = true;
+                    SearchInFiles = false;
+                    SearchOnFullPath = false;
+                    SearchForDirs = false;
+                    SearchForFiles = true;
+                }
+            }
+        }
 
         [Required]
         [Range(typeof(bool), "false", "true")]
-        public bool searchDirs { get; set; } = true;
+        public bool SearchInFiles
+        {
+            get => _searchInFiles;
+            set
+            {
+                _searchInFiles = value;
+                if (value)
+                {
+                    FileExtensionsAccordionItemExpanded = true;
+                    SearchOnlyFileExt = false;
+                    SearchForFiles = true;
+                }
+            }
+        }
+
+        public ObservableCollection<FileExtensionEntry> FileExtensions { get; set; } = [];
 
         [Required]
         [Range(typeof(bool), "false", "true")]
-        public bool searchFiles { get; set; } = true;
+        public bool SearchOnFullPath
+        {
+            get => _searchOnFullPath;
+            set
+            {
+                _searchOnFullPath = value;
+                if (value)
+                    SearchOnlyFileExt = false;
+            }
+        }
 
         [Required]
         [Range(typeof(bool), "false", "true")]
-        public bool caseSensitive { get; set; } = false;
+        public bool SearchForDirs
+        {
+            get => _searchForDirs;
+            set
+            {
+                _searchForDirs = value;
+                if (value)
+                    SearchOnlyFileExt = false;
+            }
+        }
+
+        [Required]
+        [Range(typeof(bool), "false", "true")]
+        public bool SearchForFiles
+        {
+            get => _searchForFiles;
+            set
+            {
+                _searchForFiles = value;
+                if (!value)
+                {
+                    SearchOnlyFileExt = false;
+                    SearchInFiles = false;
+                }
+            }
+        }
+
+        [Required]
+        [Range(typeof(bool), "false", "true")]
+        public bool CaseSensitive { get; set; } = false;
 
         [Required]
         [Range(typeof(bool), "false", "true")]
         public bool SpinnerVisible { get; set; } = false;
 
-        public string? lastSearchTime { get; set; } = null;
+        public string CustomExt { get; set; } = "";
+
+        public string? LastSearchTime { get; set; } = null;
 
         public WebConfigModel? Cfg { get; set; } = null;
+
+        private bool _searchOnlyFileExt = false;
+        private bool _searchInFiles = false;
+        private bool _searchOnFullPath = false;
+        private bool _searchForDirs = true;
+        private bool _searchForFiles = true;
+    }
+
+    class FileExtensionEntry
+    {
+        public bool IsSelected { set; get; }
+
+        public string Name { set; get; }
+
+        public FileExtensionEntry(bool isSelected, string name)
+        {
+            IsSelected = isSelected;
+            Name = name;
+        }
     }
 
     FormData data = new FormData();
 
-    private SfGrid<string> FileGrid;
+    private SfGrid<string>? FileGrid;
 
     List<object> FileGridContextMenuItems = new()
     {
@@ -205,22 +442,49 @@
         new ContextMenuItemModel() { Text = "Search in path", Target = ".e-content", Id = "searchinpath" },
     };
 
+    private readonly string[] TextFileExtensions =
+                                                                [
+        ".txt",
+        ".doc",
+        ".docx",
+        ".pptx",
+        ".json",
+        ".xml",
+        ".pdf",
+    ];
+
+    private readonly string[] CodingFileExtensions =
+                                                                [
+        ".log",
+        ".json",
+        ".xml",
+        ".cs",
+        ".cpp",
+        ".h",
+        ".hpp",
+        ".c",
+        ".java",
+        ".py",
+        ".sh",
+        ".bat",
+        ".ps1",
+    ];
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
-
         data.Cfg = searchService.GetWebConfigModel();
     }
 
     protected async Task Search()
     {
-        if (data.searchTask is not null)
+        if (data.SearchTask is not null)
         {
             ShowToast("Previous search is still in progress...", 10000);
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(data.pattern))
+        if (string.IsNullOrWhiteSpace(data.Pattern))
         {
             ShowToast("Empty search pattern is not allowed.", 10000);
             return;
@@ -228,8 +492,8 @@
 
         try
         {
-            if (!data.searchOnlyFileExt)
-                System.Text.RegularExpressions.Regex.IsMatch("", data.pattern);
+            if (!data.SearchOnlyFileExt)
+                System.Text.RegularExpressions.Regex.IsMatch("", data.Pattern);
         }
         catch (ArgumentException)
         {
@@ -239,13 +503,22 @@
 
         ShowToast("Starting search...");
         data.IsSpinnerVisible = true;
+        SetSpinnerVisibility(true);
         await Task.Delay(100);
         data.Paths = [];
 
         DateTime preSearch = DateTime.Now;
 
         // Prepare list of paths to be used
-        var searchSettings = new SearchSettings(data.pattern, data.searchOnlyFileExt, data.searchDirs, data.searchFiles, data.searchOnFullPath, data.caseSensitive);
+        var searchSettings = new SearchSettings(
+            pattern: data.Pattern,
+            searchOnlyFileExt: data.SearchOnlyFileExt,
+            searchInFiles: data.SearchInFiles,
+            searchDirs: data.SearchForDirs,
+            searchFiles: data.SearchForFiles,
+            searchOnFullPath: data.SearchOnFullPath,
+            caseSensitive: data.CaseSensitive,
+            fileExtensions: data.FileExtensions.Where(ext => ext.IsSelected).Select(ext => ext.Name).ToArray());
 
         foreach (var config in data.Cfg?.DBConfigs ?? [])
         {
@@ -253,20 +526,21 @@
                 searchSettings.SearchPaths.Add(new SearchPathSettings(config.ID ?? string.Empty, config.SearchPath, config.UseIgnoreList));
         }
 
-        data.searchTask = searchService.GetSearchResult(searchSettings);
-        await data.searchTask;
-        if (data.searchTask.Status != TaskStatus.RanToCompletion)
+        data.SearchTask = searchService.GetSearchResult(searchSettings);
+        await data.SearchTask;
+        if (data.SearchTask.Status != TaskStatus.RanToCompletion)
         {
             await Task.Delay(100);
-            ShowToast("Failed to complete search. Ex: " + data.searchTask.Exception?.ToString(), 10000);
+            ShowToast("Failed to complete search. Ex: " + data.SearchTask.Exception?.ToString(), 10000);
             return;
         }
 
-        IEnumerable<ISearcher.SearchResult> results = data.searchTask.Result;
+        IEnumerable<ISearcher.SearchResult> results = data.SearchTask.Result;
 
-        data.lastSearchTime = (DateTime.Now - preSearch).ToString(@"mm\:ss\:ffff", new System.Globalization.CultureInfo("en-US"));
+        data.LastSearchTime = (DateTime.Now - preSearch).ToString(@"mm\:ss\:ffff", new System.Globalization.CultureInfo("en-US"));
         data.IsSpinnerVisible = false;
-        data.searchTask = null;
+        SetSpinnerVisibility(false);
+        data.SearchTask = null;
 
         foreach (var result in results)
         {
@@ -348,5 +622,25 @@
             await InvokeAsync(Search);
             StateHasChanged();
         }
+    }
+
+    public void AddFileExtension(string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (string.IsNullOrWhiteSpace(name) || data.FileExtensions.Any(x => x.Name == name))
+                continue;
+
+            data.FileExtensions.Add(new FileExtensionEntry(true, name));
+        }
+
+        StateHasChanged();
+    }
+
+    public void SetSpinnerVisibility(bool visible)
+    {
+        data.SpinnerVisibility = visible ? "visible" : "collapse";
+        data.SpinnerDisplayMode = visible ? "block" : "none";
+        StateHasChanged();
     }
 }

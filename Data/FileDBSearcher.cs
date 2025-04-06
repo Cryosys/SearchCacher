@@ -17,7 +17,7 @@ namespace SearchCacher
 		/// <summary>   Initializes the database. </summary>
 		/// <param name="path"> Full path of the search folder. </param>
 		/// <returns>   The init Task. </returns>
-		/// <seealso cref="FileDBSearcher.InitDB(List<DBConfig>)"/>
+		/// <seealso cref="FileDBSearcher.InitDB(List{DBConfig}, CancellationToken)"/>
 		public Task InitDB(List<DBConfig> dbConfigs, CancellationToken globalCancellationToken);
 
 		/// <summary>   Initializes the database. </summary>
@@ -639,10 +639,8 @@ namespace SearchCacher
 						continue;
 					}
 					else
-					{
 						// If it does not exist we do not need to remove it
 						return;
-					}
 				}
 
 				int lastCount = curDir.Files.Length;
@@ -670,8 +668,7 @@ namespace SearchCacher
 				}
 
 				curDir.Directories = dirs.ToArray();
-
-				config.IsDirty = true;
+				config.IsDirty     = true;
 			}
 			finally
 			{
@@ -713,8 +710,8 @@ namespace SearchCacher
 
 				for (int i = 0; i < _configs.Length; i++)
 				{
-					FileDBConfig config = _configs[i];
-
+					// Has to be assigned in scope
+					FileDBConfig config                    = _configs[i];
 					SearchPathSettings? searchPathSettings = null;
 
 					// Only search paths that were selected
@@ -767,7 +764,7 @@ namespace SearchCacher
 								if (val is null)
 									return;
 
-								RecursiveSearch(dir, results[(int) val], searchPathSettings.UseIgnoreList ? config.IgnoreList : null);
+								RecursiveSearch(dir, results[(int) val], searchPathSettings.UseIgnoreList ? config.IgnoreList : []);
 							}, i);
 
 							searchTask.Start();
@@ -775,56 +772,10 @@ namespace SearchCacher
 						}
 
 						if (searchSettings.SearchDirs)
-							foreach (var dir in baseSearchDir.Directories)
-							{
-								if (searchPathSettings.UseIgnoreList)
-									if (config.IgnoreList.Any(ignorePath => ignorePath.Hash == dir.Hash))
-										continue;
-
-								if (searchSettings.SearchOnFullPath)
-								{
-									if (Regex.IsMatch(dir.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-									{
-										string fullPath = dir.FullPath;
-										if (!fullPath.EndsWith("\\"))
-											fullPath += "\\";
-
-										dbResults.Add(fullPath);
-									}
-								}
-								else if (Regex.IsMatch(dir.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-								{
-									string fullPath = dir.FullPath;
-									if (!fullPath.EndsWith("\\"))
-										fullPath += "\\";
-
-									dbResults.Add(fullPath);
-								}
-							}
+							SearchDirs(baseSearchDir, dbResults, searchPathSettings.UseIgnoreList ? config.IgnoreList : [], false);
 
 						if (searchSettings.SearchFiles)
-						{
-							foreach (var file in baseSearchDir.Files)
-							{
-								if (searchPathSettings.UseIgnoreList)
-									if (config.IgnoreList.Any(ignorePath => ignorePath.Hash == file.Hash))
-										continue;
-
-								if (searchSettings.SearchOnlyFileExt && file.Extension == searchSettings.Pattern)
-								{
-									dbResults.Add(file.FullPath);
-									continue;
-								}
-
-								if (searchSettings.SearchOnFullPath)
-								{
-									if (Regex.IsMatch(file.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-										dbResults.Add(file.FullPath);
-								}
-								else if (Regex.IsMatch(file.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-									dbResults.Add(file.FullPath);
-							}
-						}
+							SearchFiles(baseSearchDir, dbResults, searchPathSettings.UseIgnoreList ? config.IgnoreList : []);
 
 						Task.WaitAll(configSearchTasks, TimeSpan.FromMinutes(10));
 					});
@@ -856,15 +807,23 @@ namespace SearchCacher
 
 			return returnResults;
 
-			void RecursiveSearch(Dir curDir, List<string> foundFiles, List<IgnoreListEntry>? ignoreList)
+			void RecursiveSearch(Dir curDir, List<string> foundFiles, List<IgnoreListEntry> ignoreList)
+			{
+				SearchDirs(curDir, foundFiles, ignoreList);
+
+				if (searchSettings.SearchFiles)
+					SearchFiles(curDir, foundFiles, ignoreList);
+			}
+
+			void SearchDirs(Dir curDir, List<string> foundFiles, List<IgnoreListEntry> ignoreList, bool searchRecursive = true)
 			{
 				foreach (var dir in curDir.Directories)
 				{
-					if (ignoreList is not null)
-						if (ignoreList.Any(ignorePath => ignorePath.Hash == dir.Hash))
-							continue;
+					if (ignoreList.Any(ignorePath => ignorePath.Hash == dir.Hash))
+						continue;
 
 					if (searchSettings.SearchDirs && !searchSettings.SearchOnlyFileExt)
+					{
 						if (searchSettings.SearchOnFullPath)
 						{
 							if (Regex.IsMatch(dir.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
@@ -884,31 +843,47 @@ namespace SearchCacher
 
 							foundFiles.Add(fullPath);
 						}
+					}
 
-					RecursiveSearch(dir, foundFiles, ignoreList);
+					if (searchRecursive)
+						RecursiveSearch(dir, foundFiles, ignoreList);
 				}
+			}
 
-				if (searchSettings.SearchFiles)
-					foreach (var file in curDir.Files)
+			void SearchFiles(Dir dir, List<string> foundFiles, List<IgnoreListEntry> ignoreList)
+			{
+				foreach (var file in dir.Files)
+				{
+					if (ignoreList.Any(ignorePath => ignorePath.Hash == file.Hash))
+						continue;
+
+					if (searchSettings.SearchOnlyFileExt && searchSettings.FileExtensions.Any(ext => ext == file.Extension))
 					{
-						if (ignoreList is not null)
-							if (ignoreList.Any(ignorePath => ignorePath.Hash == file.Hash))
-								continue;
+						foundFiles.Add(file.FullPath);
+						continue;
+					}
 
-						if (searchSettings.SearchOnlyFileExt && file.Extension == searchSettings.Pattern)
-						{
-							foundFiles.Add(file.FullPath);
-							continue;
-						}
-
-						if (searchSettings.SearchOnFullPath)
-						{
-							if (Regex.IsMatch(file.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-								foundFiles.Add(file.FullPath);
-						}
-						else if (Regex.IsMatch(file.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+					if (searchSettings.SearchOnFullPath)
+					{
+						if (Regex.IsMatch(file.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
 							foundFiles.Add(file.FullPath);
 					}
+					else if (Regex.IsMatch(file.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
+						foundFiles.Add(file.FullPath);
+					else if (searchSettings.SearchInFiles && searchSettings.FileExtensions.Any(ext => ext == file.Extension))
+					{
+						StringComparison rule = searchSettings.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
+
+						string? line;
+						using StreamReader reader = new StreamReader(file.FullPath);
+						while ((line = reader.ReadLine()) != null)
+							if (line.Contains(searchSettings.Pattern, rule))
+							{
+								foundFiles.Add(file.FullPath);
+								break;
+							}
+					}
+				}
 			}
 		}
 
@@ -951,15 +926,7 @@ namespace SearchCacher
 				while (!_autosaveCancellationTokenSource.IsCancellationRequested)
 				{
 					Task.Delay(TimeSpan.FromMinutes(_autoSaveInterval), _autosaveCancellationTokenSource.Token).Wait(_autosaveCancellationTokenSource.Token);
-
-					foreach (var config in _configs)
-					{
-						if (!config.IsDirty)
-							continue;
-
-						_SaveDB();
-						config.IsDirty = false;
-					}
+					_SaveDB();
 				}
 			}
 			catch (OperationCanceledException)
@@ -984,9 +951,13 @@ namespace SearchCacher
 						throw new Exception("Could not acquire master lock on file DB");
 
 				foreach (var config in _configs)
-					if (config.IsDirty || force)
-						using (FileStream fileStream = new FileStream(config.FileSavePath, FileMode.Create, FileAccess.ReadWrite))
-							JsonExtensions.ToCryJson(config, fileStream);
+					lock (config.SaveLockObj)
+						if (config.IsDirty || force)
+						{
+							using (FileStream fileStream = new FileStream(config.FileSavePath, FileMode.Create, FileAccess.ReadWrite))
+								JsonExtensions.ToCryJson(config, fileStream);
+							config.IsDirty = false;
+						}
 			}
 			catch (Exception ex)
 			{
@@ -1014,8 +985,9 @@ namespace SearchCacher
 					if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
 						throw new Exception("Could not acquire master lock on file DB");
 
-				using (FileStream fileStream = new FileStream(config.FileSavePath, FileMode.Create, FileAccess.ReadWrite))
-					JsonExtensions.ToCryJson(config, fileStream);
+				lock (config.SaveLockObj)
+					using (FileStream fileStream = new FileStream(config.FileSavePath, FileMode.Create, FileAccess.ReadWrite))
+						JsonExtensions.ToCryJson(config, fileStream);
 			}
 			catch (Exception ex)
 			{
@@ -1059,6 +1031,9 @@ namespace SearchCacher
 			/// <summary> Gets or sets a lists of paths to ignore while searching. </summary>
 			[JsonIgnore]
 			internal List<IgnoreListEntry> IgnoreList { get; set; } = [];
+
+			[JsonIgnore]
+			internal object SaveLockObj { get; } = new object();
 
 			public FileDBConfig()
 			{
@@ -1160,10 +1135,10 @@ namespace SearchCacher
 	internal class File
 	{
 		[JsonProperty("Name")]
-		internal string Name;
+		internal string Name { get; set; }
 
 		[JsonProperty("Extension")]
-		internal string Extension;
+		internal string Extension { get; set; }
 
 		[JsonIgnore]
 		internal string FullPath => Path.Combine(Parent.FullPath, Name);
