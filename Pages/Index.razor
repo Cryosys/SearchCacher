@@ -311,7 +311,7 @@
         public string SpinnerVisibility { get; set; } = "collapse";
         public string SpinnerDisplayMode { get; set; } = "none";
 
-        public List<string?> Paths { get; set; } = [];
+        public List<string> Paths { get; set; } = [];
         public string Pattern { get; set; } = "nua*";
 
         public Task<IEnumerable<ISearcher.SearchResult>>? SearchTask;
@@ -443,7 +443,7 @@
     };
 
     private readonly string[] TextFileExtensions =
-                                                                [
+                                                                    [
         ".txt",
         ".doc",
         ".docx",
@@ -454,7 +454,7 @@
     ];
 
     private readonly string[] CodingFileExtensions =
-                                                                [
+                                                                    [
         ".log",
         ".json",
         ".xml",
@@ -542,14 +542,18 @@
         SetSpinnerVisibility(false);
         data.SearchTask = null;
 
+        List<string> combinedPaths = new List<string>();
+
         foreach (var result in results)
         {
             await Task.Delay(100);
             if (!result.Success)
                 ShowToast(result.Error, 10000);
             else
-                data.Paths.AddRange(result.Result);
+                combinedPaths.AddRange(result.Result);
         }
+        
+        data.Paths = combinedPaths;
 
         await Task.Delay(100);
         ShowToast("Finished search");
