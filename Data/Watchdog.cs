@@ -9,7 +9,7 @@ namespace SearchCacher
 		internal List<string> CurrentWatchPaths { get; private set; } = [];
 
 		private List<FileSystemWatcher> _watchers = [];
-		private BlockingCollection<WatchedEventArgs>? _blocks;
+		private BlockingCollection<WatchedEventArgs> _blocks = new ();
 		private Thread? _eventThread;
 
 		public Watchdog()
@@ -59,7 +59,6 @@ namespace SearchCacher
 			if (_watchers is null)
 				throw new NullReferenceException(nameof(_watchers));
 
-			_blocks      = new BlockingCollection<WatchedEventArgs>();
 			_eventThread = new Thread(EventInvokerThread);
 			_eventThread.Start();
 
@@ -75,7 +74,7 @@ namespace SearchCacher
 			foreach (var watcher in _watchers)
 				watcher.EnableRaisingEvents = false;
 
-			_blocks?.CompleteAdding();
+			_blocks.CompleteAdding();
 			_eventThread?.Join();
 		}
 
