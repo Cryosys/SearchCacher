@@ -114,13 +114,16 @@
 						// The master lock is already in use
 						continue;
 
-					if (_counter != 0)
-						// Can only acquire the master lock if no other locks is set
-						continue;
+					lock (_masterLockObject)
+					{
+						if (_counter != 0)
+							// Can only acquire the master lock if no other locks is set
+							continue;
 
-					_masterLockResetEvent.Reset();
-					Program.Log("Acquired master lock");
-					return true;
+						_masterLockResetEvent.Reset();
+						Program.Log("Acquired master lock");
+						return true;
+					}
 				}
 
 				return false;
