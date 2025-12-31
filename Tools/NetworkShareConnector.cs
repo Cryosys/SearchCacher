@@ -24,7 +24,7 @@ namespace SearchCacher
 			var result   = WNetAddConnection2(netResource, credentials.Password, userName, 0);
 
 			if (result != 0)
-				throw new Win32Exception(result, "Error connecting to remote share");
+				throw new Win32Exception(result, "Error connecting to remote share: " + _networkName);
 		}
 
 		~NetworkShareConnector()
