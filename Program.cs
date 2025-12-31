@@ -264,7 +264,7 @@ namespace SearchCacher
 					}
 				}
 
-				System.IO.File.WriteAllText(ConfigPath, cfg.ToCryJson());
+				System.IO.File.WriteAllText(ConfigPath, cfg.ToCryJson(Newtonsoft.Json.Formatting.Indented));
 				if (forceDBDelete)
 					_newConfigSet = true;
 

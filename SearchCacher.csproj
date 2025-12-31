@@ -29,7 +29,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="CryLib.Core" Version="3.0.4" />
+		<PackageReference Include="CryLib.Core" Version="3.1.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.1" />
 		<PackageReference Include="Syncfusion.Blazor" Version="32.1.21" />
 		<PackageReference Include="Syncfusion.Blazor.Themes" Version="32.1.21" />
