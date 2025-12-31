@@ -131,8 +131,9 @@
         <div style="background:#34455d;margin:4pt">
             <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
                 <SfButton style="margin:5px" @onclick="@(e => newCfg = dbConfig)">Edit</SfButton>
+                <SfButton style="margin:5px" @onclick="@(e => RemoveConfig(dbConfig.ID))">Remove</SfButton>
                 <div style="margin-left:10px">@dbConfig.RootPath</div>
-                <SfButton style="margin:5px;align-items:flex-end" @onclick="@(e => RemoveConfig(dbConfig.ID))">Remove</SfButton>
+                <div style="margin-left:10px">Stored in @dbConfig.FileDBPath</div>
             </div>
             <div style="display:flex;flex-direction:row;text-align:center;align-items:center;margin:3px">
                 <SfButton style="margin-right:5px;margin-bottom:5px;margin-top:5px" @onclick=@(e => SaveIgnoreList(dbConfig))>Save List</SfButton>
