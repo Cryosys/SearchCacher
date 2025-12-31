@@ -2,6 +2,11 @@
     position: relative;
     display: flex;
     flex-direction: column;
+    height:100vh;
+}
+
+html {
+    background-color: slategray
 }
 
 main {
@@ -53,9 +58,11 @@ main {
 
     .sidebar {
         width: 250px;
-        height: 100vh;
+        align-self:start;
+        margin: 1.1rem 1rem;
         position: sticky;
         top: 0;
+        border-radius: 0.5rem;
     }
 
     .top-row {

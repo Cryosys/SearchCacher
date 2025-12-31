@@ -1,15 +1,50 @@
 ﻿@inherits LayoutComponentBase
 
+@using SearchCacher.Data
+@inject ISearchService SearchService
+
 <PageTitle>SearchCacher</PageTitle>
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
+<body style="background-color:slategray;color:white">
+    <div class="page" style="color:white">
+        <div class="sidebar">
+            <NavMenu />
+        </div>
+
+        <main>
+            <article class="content px-4">
+                @Body
+            </article>
+        </main>
     </div>
 
-    <main style="background-color:slategray;color:white">
-        <article class="content px-4">
-            @Body
-        </article>
-    </main>
-</div>
+    <div style="position:absolute;bottom:0;margin:1rem;color:white">
+        <a href="https://github.com/Cryosys/SearchCacher/releases/tag/@ISearchService.Version" target="_blank"><u>Ver. @ISearchService.Version</u></a>
+    </div>
+</body>
+
+<style>
+    a:link {
+        color: lightsteelblue;
+        background-color: transparent;
+        text-decoration: none;
+    }
+
+    a:visited {
+        color: lightsteelblue;
+        background-color: transparent;
+        text-decoration: none;
+    }
+
+    a:hover {
+        color: mediumpurple;
+        background-color: transparent;
+        text-decoration: underline;
+    }
+
+    a:active {
+        color: plum;
+        background-color: transparent;
+        text-decoration: underline;
+    }
+</style>
