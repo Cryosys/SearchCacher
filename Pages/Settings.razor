@@ -15,93 +15,94 @@
     <ToastPosition X="Right" Y="Bottom" />
 </SfToast>
 
-<table style="margin:10px;white-space:nowrap" cellpadding="4,2">
-    <thead>
-        <tr>
-            <th style="padding-right:30px;min-width:220px">Setting</th>
-            <th style="padding-right:30px">Status</th>
-            <th style="padding-right:30px">Description</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <td>Root Path:</td>
-            <td>
-                <SfTextBox Multiline="false" @bind-Value="newCfg.RootPath" style="min-width:400px" />
-            </td>
-            <td>
-                The root path is the actual path to the root directory of the storage you want to search through. <br />
-                E.g. '\\some.storage.net\some root path\folder to search in'. Do not escape the path like this -> '\\\\some.storage.net\\some root path\\folder to search in'
-            </td>
-        </tr>
-        <tr>
-            <td>Username:</td>
-            <td>
-                <SfTextBox Multiline="false" @bind-Value="newCfg.UserName" style="min-width:400px" />
-            </td>
-        </tr>
-        <tr>
-            <td>Password:</td>
-            <td>
-                <SfTextBox Multiline="false" @bind-Value="newCfg.Password" style="min-width:400px" />
-            </td>
-            <td>
-                <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="margin:10px">
-                        <g fill="none" stroke="#fb6f6f" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
-                            <path stroke-dasharray="60" stroke-dashoffset="60" d="M12 3L21 20H3L12 3Z">
-                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.75s" values="60;0" />
-                            </path>
-                            <path stroke-dasharray="6" stroke-dashoffset="6" d="M12 10V14">
-                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.9s" dur="0.3s" values="6;0" />
-                            </path>
-                        </g>
-                        <circle cx="12" cy="17" r="1" fill="#fb6f6f" fill-opacity="0">
-                            <animate fill="freeze" attributeName="fill-opacity" begin="1.2s" dur="0.6s" values="0;1" />
-                        </circle>
-                    </svg>
-                    <div style="position: relative">
-                        The password will never be shown here and never be copied into the temporary settings data from the actual config so that the password is never exposed to the web service.
+<div style="background-color:#232e3e;padding:10px">
+    <table style="white-space:nowrap">
+        <thead>
+            <tr>
+                <th style="padding-right:30px;min-width:220px">Setting</th>
+                <th style="padding-right:30px">Status</th>
+                <th style="padding-right:30px">Description</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>Root Path:</td>
+                <td>
+                    <SfTextBox Multiline="false" @bind-Value="newCfg.RootPath" style="min-width:400px" />
+                </td>
+                <td>
+                    The root path is the actual path to the root directory of the storage you want to search through. <br />
+                    E.g. '\\some.storage.net\some root path\folder to search in'. Do not escape the path like this -> '\\\\some.storage.net\\some root path\\folder to search in'
+                </td>
+            </tr>
+            <tr>
+                <td>Username:</td>
+                <td>
+                    <SfTextBox Multiline="false" @bind-Value="newCfg.UserName" style="min-width:400px" />
+                </td>
+            </tr>
+            <tr>
+                <td>Password:</td>
+                <td>
+                    <SfTextBox Multiline="false" @bind-Value="newCfg.Password" style="min-width:400px" />
+                </td>
+                <td>
+                    <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" style="margin:10px">
+                            <g fill="none" stroke="#fb6f6f" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5">
+                                <path stroke-dasharray="60" stroke-dashoffset="60" d="M12 3L21 20H3L12 3Z">
+                                    <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.75s" values="60;0" />
+                                </path>
+                                <path stroke-dasharray="6" stroke-dashoffset="6" d="M12 10V14">
+                                    <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.9s" dur="0.3s" values="6;0" />
+                                </path>
+                            </g>
+                            <circle cx="12" cy="17" r="1" fill="#fb6f6f" fill-opacity="0">
+                                <animate fill="freeze" attributeName="fill-opacity" begin="1.2s" dur="0.6s" values="0;1" />
+                            </circle>
+                        </svg>
+                        <div style="position: relative">
+                            The password will never be shown here and never be copied into the temporary settings data from the actual config so that the password is never exposed to the web service.
+                        </div>
                     </div>
-                </div>
-            </td>
-        </tr>
-        <tr>
-            <td>Watchdog files filter:</td>
-            <td>
-                <SfTextBox Multiline="false" @bind-Value="newCfg.WatchDogFilter" style="min-width:400px" />
-            </td>
-            <td>
-                Info about the filter can be found here: <a href="https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher.filter?view=net-8.0" target="_blank" class="a-text">.NET FileSystemWatcher</a>
-            </td>
-        </tr>
-        <tr>
-            <td>File DB path:</td>
-            <td>
-                <SfTextBox Multiline="false" @bind-Value="newCfg.FileDBPath" style="min-width:400px" />
-            </td>
-            <td>
-                The file DB can become a large file and should be, if possible, stored on a storage media that is not going to break fast. <br />
-                The database will, if enabled, be autosaved every x minutes which can put quite the strain on the drive. <br />
-                In theory the DB does not need to be saved that often and could only be saved on stop of the service/app. <br />
-                But keep in mind that if the service breaks for what ever reason you most likely will need to reinitalize it.
-            </td>
-        </tr>
-        <tr>
-            <td>Autosave:</td>
-            <td>
-                <SfSwitch @bind-Checked="Cfg.AutoSaveEnabled" />
-            </td>
-        </tr>
-        <tr>
-            <td>Autosave interval in minutes:</td>
-            <td>
-                <SfNumericTextBox @bind-Value="Cfg.AutoSaveInterval" Step="1" style="min-width:400px" />
-            </td>
-        </tr>
-    </tbody>
-</table>
-<br />
+                </td>
+            </tr>
+            <tr>
+                <td>Watchdog files filter:</td>
+                <td>
+                    <SfTextBox Multiline="false" @bind-Value="newCfg.WatchDogFilter" style="min-width:400px" />
+                </td>
+                <td>
+                    Info about the filter can be found here: <a href="https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher.filter?view=net-8.0" target="_blank" class="a-text">.NET FileSystemWatcher</a>
+                </td>
+            </tr>
+            <tr>
+                <td>File DB path:</td>
+                <td>
+                    <SfTextBox Multiline="false" @bind-Value="newCfg.FileDBPath" style="min-width:400px" />
+                </td>
+                <td>
+                    The file DB can become a large file and should be, if possible, stored on a storage media that is not going to break fast. <br />
+                    The database will, if enabled, be autosaved every x minutes which can put quite the strain on the drive. <br />
+                    In theory the DB does not need to be saved that often and could only be saved on stop of the service/app. <br />
+                    But keep in mind that if the service breaks for what ever reason you most likely will need to reinitalize it.
+                </td>
+            </tr>
+            <tr>
+                <td>Autosave:</td>
+                <td>
+                    <SfSwitch @bind-Checked="Cfg.AutoSaveEnabled" />
+                </td>
+            </tr>
+            <tr>
+                <td>Autosave interval in minutes:</td>
+                <td>
+                    <SfNumericTextBox @bind-Value="Cfg.AutoSaveInterval" Step="1" style="min-width:400px" />
+                </td>
+            </tr>
+        </tbody>
+    </table>
+</div>
 
 <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
     <SfButton style="margin:5px" @onclick=AddConfig>Add/Update Path</SfButton>
@@ -124,6 +125,8 @@
         This will also delete the old DB and needs to be re-initialized.
     </div>
 </div>
+
+<br />
 
 <div style="background:#232E3E;border:solid #232E3E;border-width:thick">
     @foreach (WebDBConfigModel dbConfig in Cfg.DBConfigs)
@@ -177,9 +180,18 @@
 
 <style>
     .a-text:visited {
-    color: deepskyblue;
-    background-color: transparent;
-    text-decoration: none;
+        color: deepskyblue;
+        background-color: transparent;
+        text-decoration: none;
+    }
+
+    td, th {
+        padding: 4px 10px;
+    }
+
+    table {
+        border-spacing: 4px;
+        border-collapse: separate;
     }
 </style>
 
@@ -339,7 +351,7 @@
 
         if (!dbConfig.IgnoreList.Any(entry => entry.Path == dbConfig.IgnorePathToAdd))
         {
-            dbConfig.IgnoreList.Add(new (dbConfig.IgnorePathToAdd));
+            dbConfig.IgnoreList.Add(new(dbConfig.IgnorePathToAdd));
             await Task.Delay(100);
             ShowToast("Added path");
             StateHasChanged();
@@ -361,7 +373,7 @@
 
         if (!newCfg.IgnoreList.Any(entry => entry.Path == ignorePathToAdd))
         {
-            newCfg.IgnoreList.Add(new (ignorePathToAdd));
+            newCfg.IgnoreList.Add(new(ignorePathToAdd));
             await Task.Delay(100);
             ShowToast("Added path");
             StateHasChanged();
@@ -402,10 +414,10 @@
             return;
 
         await ToastObj.ShowAsync(new ToastModel()
-            {
-                Content = info,
-                Timeout = timeout
-            });
+        {
+            Content = info,
+            Timeout = timeout
+        });
     }
 
     protected bool IsValidUser()
