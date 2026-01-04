@@ -37,7 +37,51 @@ namespace SearchCacher
 			LibTools.ExceptionManager.bAllowCollection = true;
 			LibTools.ExceptionManager.bLogExceptions   = true;
 
-			Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(SecretsConfig.License);
+			// Basic web properties
+			string thumb = string.Empty;
+            bool useHttpsRedirect = false;
+            int sslPort = 443;
+
+            foreach (string arg in args)
+            {
+				if (arg.StartsWith("--thumb="))
+				{
+					string[] thumbArgs = arg.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+					if (thumbArgs.Length != 2)
+						continue;
+
+					thumb = thumbArgs[1];
+				}
+				else if (arg.StartsWith("--sslport="))
+				{
+					string[] portArgs = arg.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+
+					if (portArgs.Length != 2)
+						continue;
+
+					if (!int.TryParse(portArgs[1], out sslPort))
+					{
+						Console.WriteLine($"'{portArgs[1]}' is not a valid port");
+						throw new ArgumentException($"'{portArgs[1]}' is not a valid port");
+					}
+				}
+				else if (arg.StartsWith("--httpsredirect"))
+					useHttpsRedirect = true;
+				else if (arg == "--enable-init-logging")
+				{
+                    SearchService.SubscribeToInitDir((dir) =>
+                    {
+                        // This function should never throw an exception
+                        try
+                        {
+                            _logHandler.Log(LogTypes.DBInit, "Init: " + dir);
+                        }
+                        catch { }
+                    });
+                }
+            }
+
+            Syncfusion.Licensing.SyncfusionLicenseProvider.RegisterLicense(SecretsConfig.License);
 
 			if (!System.IO.File.Exists(ConfigPath))
 				System.IO.File.WriteAllText(ConfigPath, new Config().ToCryJson());
@@ -81,15 +125,6 @@ namespace SearchCacher
 				}
 
 				_service = new SearchService(_serviceConfig);
-				SearchService.SubscribeToInitDir((dir) =>
-                {
-                    // This function should never throw an exception as it could cause loops
-                    try
-                    {
-                        _logHandler.Log(LogTypes.DBInit, "Init: " + dir);
-                    }
-                    catch { }
-				});
             }
 
 			var builder = WebApplication.CreateBuilder(new WebApplicationOptions()
@@ -106,68 +141,42 @@ namespace SearchCacher
 			builder.Services.AddSingleton<ISearchService>(_service);
 			builder.Services.AddWindowsService();
 
-			bool useHttpsRedirect = false;
-			int sslPort           = 443;
-
-			foreach (string arg in args)
+			if(!string.IsNullOrWhiteSpace(thumb))
 			{
-				if (arg.StartsWith("--thumb="))
-				{
-					string[] thumbArgs = arg.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
+                X509Certificate2? cert = null;
 
-					if (thumbArgs.Length != 2)
-						continue;
+                using (X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine))
+                {
+                    store.Open(OpenFlags.ReadOnly);
 
-					X509Certificate2? cert = null;
+                    for (int iIndex = 0; iIndex < store.Certificates.Count; iIndex++)
+                    {
+                        var xCert = store.Certificates[iIndex];
+                        if (xCert.Thumbprint.ToUpper() == thumb.ToUpper())
+                        {
+                            cert = xCert;
+                            Console.WriteLine("Found cert: " + cert.Subject);
+                            break;
+                        }
+                    }
+                }
 
-					using (X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine))
-					{
-						store.Open(OpenFlags.ReadOnly);
+                if (cert == null)
+                {
+                    Console.WriteLine("Could find not find cert in certificate store.");
+                    throw new ArgumentException("Could find not find cert in certificate store.");
+                }
 
-						for (int iIndex = 0; iIndex < store.Certificates.Count; iIndex++)
-						{
-							var xCert = store.Certificates[iIndex];
-							if (xCert.Thumbprint.ToUpper() == thumbArgs[1].ToUpper())
-							{
-								cert = xCert;
-								Console.WriteLine("Found cert: " + cert.Subject);
-								break;
-							}
-						}
-					}
+                Console.WriteLine("Assigning cert...");
 
-					if (cert == null)
-					{
-						Console.WriteLine("Could find not find cert in certificate store.");
-						throw new ArgumentException("Could find not find cert in certificate store.");
-					}
-
-					Console.WriteLine("Assigning cert...");
-
-					builder.WebHost.ConfigureKestrel((context, serverOptions) =>
-					{
-						serverOptions.ConfigureHttpsDefaults((listeningOptions) =>
-						{
-							listeningOptions.ServerCertificate = cert;
-						});
-					});
-				}
-				else if (arg.StartsWith("--sslport="))
-				{
-					string[] portArgs = arg.Split('=', 2, StringSplitOptions.RemoveEmptyEntries);
-
-					if (portArgs.Length != 2)
-						continue;
-
-					if (!int.TryParse(portArgs[1], out sslPort))
-					{
-						Console.WriteLine($"'{portArgs[1]}' is not a valid port");
-						throw new ArgumentException($"'{portArgs[1]}' is not a valid port");
-					}
-				}
-				else if (arg.StartsWith("--httpsredirect"))
-					useHttpsRedirect = true;
-			}
+                builder.WebHost.ConfigureKestrel((context, serverOptions) =>
+                {
+                    serverOptions.ConfigureHttpsDefaults((listeningOptions) =>
+                    {
+                        listeningOptions.ServerCertificate = cert;
+                    });
+                });
+            }
 
 			_dog?.Start();
 
