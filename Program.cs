@@ -254,6 +254,8 @@ namespace SearchCacher
 			{
 				if (_serviceConfig is not null)
 				{
+					cfg.AllowOnlyLocalSettingsAccess = _serviceConfig.AllowOnlyLocalSettingsAccess;
+
 					foreach (var dbConfig in _serviceConfig.DBConfigs)
 					{
 						var config = cfg.DBConfigs.Find(x => x.ID == dbConfig.ID);
