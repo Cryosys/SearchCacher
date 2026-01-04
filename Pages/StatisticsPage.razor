@@ -38,6 +38,8 @@
 
     public string ToStorageUnit(long size)
     {
+        if (size > TBSize)
+            return $"{(size / (double)TBSize):0.00} TB";
         if (size > GBSize)
             return $"{(size / (double)GBSize):0.00} GB";
         else if (size > MBSize)
@@ -48,7 +50,8 @@
             return $"{size} B";
     }
 
-    public const long GBSize = 1024 * 1024 * 1024;
-    public const long MBSize = 1024 * 1024;
-    public const long KBSize = 1024;
+    public const long TBSize = 1024L * 1024L * 1024L * 1024L;
+    public const long GBSize = 1024L * 1024L * 1024L;
+    public const long MBSize = 1024L * 1024L;
+    public const long KBSize = 1024L;
 }
