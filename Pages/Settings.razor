@@ -133,14 +133,21 @@
 <div style="background:#232E3E;border:solid #232E3E;border-width:thick">
     @foreach (WebDBConfigModel dbConfig in Cfg.DBConfigs)
     {
+        SettingsConfigUIModel uiModel = SettingsConfigUIModels[dbConfig.ID];
+
         <div style="background:#34455d;margin:4pt">
             <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
                 <SfButton style="margin:5px" @onclick="@(e => newCfg = dbConfig)">Edit</SfButton>
                 <SfButton style="margin:5px" @onclick="@(e => RemoveConfig(dbConfig.ID))">Remove</SfButton>
+                <SfButton style="margin:5px" @onclick="@(e => InitSingleDB(dbConfig.ID))">Init DB</SfButton>
+                <div style="position: relative;width:@(uiModel.ShowSpinner ? "50px" : "0px")">
+                    <SfSpinner Size="20" @bind-Visible="@uiModel.ShowSpinner" />
+                </div>
+
                 <div style="margin-left:10px">@dbConfig.RootPath</div>
                 <div style="margin-left:10px">Stored in @dbConfig.FileDBPath</div>
             </div>
-            <div style="display:flex;flex-direction:row;text-align:center;align-items:center;margin:3px">
+            <div style="display:flex;flex-direction:row;text-align:center;align-items:center;margin:3px 5px">
                 <SfButton style="margin-right:5px;margin-bottom:5px;margin-top:5px" @onclick=@(e => SaveIgnoreList(dbConfig))>Save List</SfButton>
                 <SfTextBox Multiline="false" @bind-Value="@(dbConfig.IgnorePathToAdd)" style="min-width:300px" />
                 <SfButton style="margin-left:5px;margin-bottom:5px;margin-top:5px" @onclick=@(e => AddIgnorepath(dbConfig))>Add</SfButton>
@@ -205,22 +212,32 @@
     private bool IsSpinnerVisible { get; set; } = false;
     private string currentDir { get; set; } = "";
     private string ignorePathToAdd { get; set; } = "";
+    private Lock pathLock = new();
 
     private WebConfigModel? Cfg { get; set; } = null;
 
     private WebDBConfigModel newCfg { get; set; } = new WebDBConfigModel();
+
+    private Dictionary<string, SettingsConfigUIModel> SettingsConfigUIModels { get; set; } = [];
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
 
         Cfg = SearchService.GetWebConfigModel();
+        foreach (var dbConfig in Cfg.DBConfigs)
+            SettingsConfigUIModels.Add(dbConfig.ID, new SettingsConfigUIModel(dbConfig.ID));
+
         SearchCacher.Data.SearchService.SubscribeToCurrentSearchDir(async (dir) =>
         {
             await InvokeAsync(() =>
             {
-                currentDir = dir;
-                StateHasChanged();
+                // This is purely to reduce exceptions
+                lock (pathLock)
+                {
+                    currentDir = dir;
+                    StateHasChanged();
+                }
             });
         });
     }
@@ -274,6 +291,28 @@
         ShowToast("Setting Config...");
         Program.SetNewConfig(Cfg);
         ShowToast("Done. Restart Service to apply Config");
+    }
+
+    protected async Task InitSingleDB(string configID)
+    {
+        ShowToast("Initiating DB...");
+        var uiModel = SettingsConfigUIModels[configID];
+        uiModel.ShowSpinner = true;
+
+        var cancelSource = new CancellationTokenSource();
+        Task initDBTask = SearchService.InitDB(configID, cancelSource.Token);
+        await initDBTask;
+
+        if (initDBTask.Status != TaskStatus.RanToCompletion)
+        {
+            ShowToast("Failed to init DB. Ex: " + initDBTask.Exception?.ToString());
+            return;
+        }
+
+        currentDir = "";
+        ShowToast("Done");
+        uiModel.ShowSpinner = false;
+        StateHasChanged();
     }
 
     protected async Task InitDB()
@@ -440,5 +479,17 @@
         }
 
         return true;
+    }
+
+    public class SettingsConfigUIModel
+    {
+        public string ConfigID { get; set; } = "";
+
+        public bool ShowSpinner { get; set; } = false;
+
+        public SettingsConfigUIModel(string configID)
+        {
+            ConfigID = configID;
+        }
     }
 }

@@ -14,6 +14,8 @@ namespace SearchCacher.Data
 
 		Task InitDB(CancellationToken token);
 
+		Task InitDB(string configID, CancellationToken token);
+
 		void DelDB(string? searchPath = null);
 
 		void AddPath(string searchPath, string path);
@@ -64,6 +66,8 @@ namespace SearchCacher.Data
 		public Task<IEnumerable<SearchResult>> GetSearchResult(SearchSettings settings) => Task.FromResult(_searchHandler.Search(settings));
 
 		public Task InitDB(CancellationToken token) => _searchHandler.InitDB(_cfg.DBConfigs, token);
+
+		public Task InitDB(string configID, CancellationToken token) => _searchHandler.InitDB(configID, token, false);
 
 		public void DelDB(string? guid) => _searchHandler.DelDB(guid);
 
@@ -125,6 +129,8 @@ namespace SearchCacher.Data
         public Task<IEnumerable<SearchResult>> GetSearchResult(SearchSettings settings) => Task.FromResult<IEnumerable<SearchResult>>([new ISearcher.SearchResult(false, Array.Empty<string>(), "Cannot run search, searcher not initialized. Most likely because of an invalid config")]);
 
         public Task InitDB(CancellationToken token) => Task.CompletedTask;
+
+        public Task InitDB(string configID, CancellationToken token) => Task.CompletedTask;
 
         public void DelDB(string? searchPath) { }
 

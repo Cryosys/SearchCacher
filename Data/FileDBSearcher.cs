@@ -15,10 +15,14 @@ namespace SearchCacher
         public event Action<string>? CurrentSearchDir;
 
         /// <summary>   Initializes the database. </summary>
-        /// <param name="path"> Full path of the search folder. </param>
         /// <returns>   The init Task. </returns>
         /// <seealso cref="FileDBSearcher.InitDB(List{DBConfig}, CancellationToken)"/>
         public Task InitDB(List<DBConfig> dbConfigs, CancellationToken globalCancellationToken);
+
+        /// <summary>   Initializes the database of the given config ID. </summary>
+        /// <returns>   The init Task. </returns>
+        /// <seealso cref="FileDBSearcher.InitDB(List{DBConfig}, CancellationToken)"/>
+        public Task InitDB(string configID, CancellationToken globalCancellationToken, bool parentHasMasterLock);
 
         /// <summary>   Adds a path. </summary>
         /// <param name="path"> Full path to add. </param>
@@ -94,6 +98,7 @@ namespace SearchCacher
         private CancellationTokenSource _autosaveCancellationTokenSource = new CancellationTokenSource();
         private readonly object _autosaveLock = new object();
         private int _autoSaveInterval;
+        private Lock _countLock = new Lock();
 
         public FileDBSearcher(Config serviceConfig, int autoSaveInterval = 5)
         {
@@ -130,167 +135,132 @@ namespace SearchCacher
             // The parent relation needs to be restored as we do not serialize looped references.
             _RestoreParentRelation();
 
-            Program.Log($"Got {InitDirCount.ToString("#,##0")} directories and {InitFileCount.ToString("#,##0")} files");
+            Program.Log($"Restored {InitDirCount.ToString("#,##0")} directories and {InitFileCount.ToString("#,##0")} files");
         }
 
-        public Task InitDB(List<DBConfig> configs, CancellationToken globalCancellationToken)
+        public Task InitDB(string configID, CancellationToken globalCancellationToken, bool parentHasMasterLock)
         {
             return Task.Run(() =>
             {
-                List<Task> initTasks = new();
-
-                if (!_dbLock.RequestMasterLockAsync(globalCancellationToken).Result)
-                {
-                    if (globalCancellationToken.IsCancellationRequested)
-                        return;
-
-                    throw new Exception("Could not acquire master lock on file DB");
-                }
-
-                object countLockObj = new object();
-                InitDirCount = 0;
-                InitFileCount = 0;
-
-                DateTime preStartTime = DateTime.Now;
-
-                _configs = new FileDBConfig[configs.Count];
-
-                for (int i = 0; i < configs.Count; i++)
-                {
-                    DBConfig config = configs[i];
-                    int index = i;
-
-                    initTasks.Add(Task.Run(() =>
+                if (!parentHasMasterLock)
+                    if (!_dbLock.RequestMasterLockAsync(globalCancellationToken).Result)
                     {
-                        if (config is null)
+                        if (globalCancellationToken.IsCancellationRequested)
                             return;
 
-                        // Initiate the dir with no parent
-                        CancellationTokenSource initCancelSource = new CancellationTokenSource();
-                        try
+                        throw new Exception("Could not acquire master lock on file DB");
+                    }
+
+                FileDBConfig? fileDBConfig = _configs.FirstOrDefault(c => c.ID == configID);
+
+                try
+                {
+
+                    if (fileDBConfig is null)
+                        throw new ArgumentException("Invalid config ID", nameof(configID));
+
+                    Program.Log("Starting init for " + fileDBConfig.RootPath);
+
+                    string[] baseDirPaths = Directory.GetDirectories(fileDBConfig.RootPath);
+                    List<Task> tasks = new List<Task>();
+                    List<Dir> baseDirs = new List<Dir>();
+
+                    // Here we do some simple threading where we can check multiple directories at the same time
+                    // This does not consider that the root may contain only 1 folder and then splits
+                    for (int i = 0; i < baseDirPaths.Length; i++)
+                    {
+                        string? dirName = new DirectoryInfo(baseDirPaths[i]).Name;
+                        if (string.IsNullOrWhiteSpace(dirName))
                         {
-                            Program.Log("Starting init for " + config.RootPath);
+                            // In this case we do not create a path for this directory and just mark it as finished, but never add it to the final dirs.
+                            continue;
+                        }
 
-                            if (string.IsNullOrWhiteSpace(config.StatisticsPath))
-                            {
-                                DirectoryInfo dbPathInfo = new DirectoryInfo(config.FileDBPath);
-                                config.StatisticsPath = Path.Combine(dbPathInfo.Parent.FullName, "search_stats");
-                            }
-
-                            var dbConfig = new FileDBConfig(config.ID, config.RootPath, config.FileDBPath, new Dir(config.RootPath, null), new Statistics(config.StatisticsPath, config.RootPath));
-                            _configs[index] = dbConfig;
-
-                            string[] baseDirPaths = Directory.GetDirectories(config.RootPath);
-                            List<Task> tasks = new List<Task>();
-                            List<Dir> baseDirs = new List<Dir>();
-
-                            // Here we do some simple threading where we can check multiple directories at the same time
-                            // This does not consider that the root may contain only 1 folder and then splits
-                            for (int i = 0; i < baseDirPaths.Length; i++)
-                            {
-                                string? dirName = new DirectoryInfo(baseDirPaths[i]).Name;
-                                if (string.IsNullOrWhiteSpace(dirName))
-                                {
-                                    // In this case we do not create a path for this directory and just mark it as finished, but never add it to the final dirs.
-                                    continue;
-                                }
-
-                                Dir dir = new Dir(dirName, dbConfig.DB);
-                                tasks.Add(new Task(delegate (object? val)
-                                {
-                                    try
-                                    {
-                                        (int index, Dir tmpDir) = (Tuple<int, Dir>)val;
-                                        long dirCount = 0, fileCount = 0;
-                                        Recursive(dbConfig.Stats, baseDirPaths[index], tmpDir, initCancelSource.Token, ref dirCount, ref fileCount);
-
-                                        lock (countLockObj)
-                                        {
-                                            InitDirCount += dirCount;
-                                            InitFileCount += fileCount;
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        CryLib.Core.LibTools.ExceptionManager.AddException(ex);
-                                        throw;
-                                    }
-                                }, new Tuple<int, Dir>(i, dir)));
-                                baseDirs.Add(dir);
-                            }
-
-                            foreach (Task task in tasks)
-                                task.Start();
-
+                        Dir dir = new Dir(dirName, fileDBConfig.DB);
+                        tasks.Add(new Task(delegate (object? val)
+                        {
                             try
                             {
-                                // Before we wait for the tasks we can do some work in this thread and check the files in the base directory
-                                // Now we form the actual DB
-                                dbConfig.DB.Directories = baseDirs.ToArray();
+                                (int index, Dir tmpDir) = (Tuple<int, Dir>)val;
+                                long dirCount = 0, fileCount = 0;
+                                Recursive(fileDBConfig.Stats, baseDirPaths[index], tmpDir, globalCancellationToken, ref dirCount, ref fileCount);
 
-                                string[] innerFiles = Directory.GetFiles(config.RootPath);
-                                dbConfig.DB.Files = new File[innerFiles.Length];
-                                string file;
-
-                                for (int i = 0; i < innerFiles.Length; i++)
+                                lock (_countLock)
                                 {
-                                    if (globalCancellationToken.IsCancellationRequested)
-                                        return;
-
-                                    file = innerFiles[i];
-                                    string? fileName = Path.GetFileName(file);
-                                    if (string.IsNullOrWhiteSpace(fileName))
-                                        continue;
-
-                                    File fileEntry = new File(fileName, dbConfig.DB);
-                                    dbConfig.DB.Files[i] = fileEntry;
-                                    dbConfig.Stats.AddFile(fileEntry);
+                                    InitDirCount += dirCount;
+                                    InitFileCount += fileCount;
                                 }
                             }
                             catch (Exception ex)
                             {
                                 CryLib.Core.LibTools.ExceptionManager.AddException(ex);
-                                initCancelSource.Cancel();
-
-                                // We still have to await the cancel.
-                                // We give it a hard stop time, it should never get to this as the process to check for the cancel should be rather fast.
-                                Task.WaitAll(tasks.ToArray(), 60000);
                                 throw;
                             }
+                        }, new Tuple<int, Dir>(i, dir)));
+                        baseDirs.Add(dir);
+                    }
 
-                            Task.WaitAll(tasks.ToArray(), initCancelSource.Token);
-                            _SaveDB(dbConfig, true, true);
-                        }
-                        catch (Exception ex)
+                    foreach (Task task in tasks)
+                        task.Start();
+
+                    try
+                    {
+                        // Before we wait for the tasks we can do some work in this thread and check the files in the base directory
+                        // Now we form the actual DB
+                        fileDBConfig.DB.Directories = baseDirs.ToArray();
+
+                        string[] innerFiles = Directory.GetFiles(fileDBConfig.RootPath);
+                        fileDBConfig.DB.Files = new File[innerFiles.Length];
+                        string file;
+
+                        for (int i = 0; i < innerFiles.Length; i++)
                         {
-                            CryLib.Core.LibTools.ExceptionManager.AddException(ex);
-                            throw;
+                            if (globalCancellationToken.IsCancellationRequested)
+                                return;
+
+                            file = innerFiles[i];
+                            string? fileName = Path.GetFileName(file);
+                            if (string.IsNullOrWhiteSpace(fileName))
+                                continue;
+
+                            File fileEntry = new File(fileName, fileDBConfig.DB);
+                            fileDBConfig.DB.Files[i] = fileEntry;
+                            fileDBConfig.Stats.AddFile(fileEntry);
                         }
-                        finally
-                        {
-                            Program.Log("Finished init on " + config.RootPath);
-                            initCancelSource.Dispose();
-                        }
-                    }));
+                    }
+                    catch (Exception ex)
+                    {
+                        CryLib.Core.LibTools.ExceptionManager.AddException(ex);
+
+                        // We still have to await the cancel.
+                        // We give it a hard stop time, it should never get to this as the process to check for the cancel should be rather fast.
+                        Task.WaitAll(tasks.ToArray(), 60000);
+                        throw;
+                    }
+
+                    Task.WaitAll(tasks.ToArray());
+                    _SaveDB(fileDBConfig, true, true);
+
+                    Program.Log("Finished init on " + fileDBConfig.RootPath);
                 }
-
-                try
+                catch (Exception ex)
                 {
-                    // We do not listen to the cancellation here as we handle it in the individual tasks
-                    Task.WaitAll(initTasks);
+                    CryLib.Core.LibTools.ExceptionManager.AddException(ex);
+                    Program.Log($"Failed to init root path: {fileDBConfig?.RootPath} with ID {configID}");
+                    throw;
                 }
                 finally
                 {
-                    CancellationTokenSource masterLockCancelSource = new CancellationTokenSource();
+                    if (!parentHasMasterLock)
+                    {
+                        CancellationTokenSource masterLockCancelSource = new CancellationTokenSource();
 
-                    // No matter what the cancellation state is, we wait for the master lock to be released
-                    if (!_dbLock.ReleaseMasterLockAsync(masterLockCancelSource.Token).Result)
-                        throw new Exception("Could not release master lock on file DB");
+                        // No matter what the cancellation state is, we wait for the master lock to be released
+                        if (!_dbLock.ReleaseMasterLockAsync(masterLockCancelSource.Token).Result)
+                            throw new Exception("Could not release master lock on file DB");
 
-                    masterLockCancelSource.Dispose();
-
-                    Program.Log("DB init took: " + (DateTime.Now - preStartTime).ToString("g"));
-                    Program.Log($"Got {InitDirCount.ToString("#,##0")} directories and {InitFileCount.ToString("#,##0")} files");
+                        masterLockCancelSource.Dispose();
+                    }
                 }
             });
 
@@ -346,6 +316,70 @@ namespace SearchCacher
 
                 fileCount += innerFiles.Length;
             }
+        }
+
+        public Task InitDB(List<DBConfig> configs, CancellationToken globalCancellationToken)
+        {
+            return Task.Run(() =>
+            {
+                List<Task> initTasks = new();
+
+                if (!_dbLock.RequestMasterLockAsync(globalCancellationToken).Result)
+                {
+                    if (globalCancellationToken.IsCancellationRequested)
+                        return;
+
+                    throw new Exception("Could not acquire master lock on file DB");
+                }
+
+                lock (_countLock)
+                {
+                    InitDirCount = 0;
+                    InitFileCount = 0;
+                }
+
+                DateTime preStartTime = DateTime.Now;
+                _configs = new FileDBConfig[configs.Count];
+
+                for (int configIndex = 0; configIndex < configs.Count; configIndex++)
+                {
+                    DBConfig dbConfig = configs[configIndex];
+                    int index = configIndex;
+
+                    if (dbConfig is null)
+                        continue;
+
+                    if (string.IsNullOrWhiteSpace(dbConfig.StatisticsPath))
+                    {
+                        DirectoryInfo dbPathInfo = new DirectoryInfo(dbConfig.FileDBPath);
+                        dbConfig.StatisticsPath = Path.Combine(dbPathInfo.Parent.FullName, "search_stats");
+                    }
+
+                    var fileDBConfig = new FileDBConfig(dbConfig.ID, dbConfig.RootPath, dbConfig.FileDBPath, new Dir(dbConfig.RootPath, null), new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath));
+                    _configs[index] = fileDBConfig;
+
+                    initTasks.Add(InitDB(fileDBConfig.ID, globalCancellationToken, true));
+                }
+
+                try
+                {
+                    // We do not listen to the cancellation here as we handle it in the individual tasks
+                    Task.WaitAll(initTasks);
+                }
+                finally
+                {
+                    CancellationTokenSource masterLockCancelSource = new CancellationTokenSource();
+
+                    // No matter what the cancellation state is, we wait for the master lock to be released
+                    if (!_dbLock.ReleaseMasterLockAsync(masterLockCancelSource.Token).Result)
+                        throw new Exception("Could not release master lock on file DB");
+
+                    masterLockCancelSource.Dispose();
+
+                    Program.Log("DB init took: " + (DateTime.Now - preStartTime).ToString("g"));
+                    Program.Log($"Got {InitDirCount.ToString("#,##0")} directories and {InitFileCount.ToString("#,##0")} files");
+                }
+            });
         }
 
         public void AddPath(string rootPath, string path)
@@ -921,14 +955,14 @@ namespace SearchCacher
             }
         }
 
-        private void _SaveDB(bool parentHasMaster = false, bool force = false)
+        private void _SaveDB(bool parentHasMasterLock = false, bool force = false)
         {
             CancellationTokenSource cancelSource = new CancellationTokenSource();
             try
             {
                 Program.Log("Saving DBs");
 
-                if (!parentHasMaster)
+                if (!parentHasMasterLock)
                     if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
                         throw new Exception("Could not acquire master lock on file DB");
 
@@ -941,7 +975,7 @@ namespace SearchCacher
             }
             finally
             {
-                if (!parentHasMaster)
+                if (!parentHasMasterLock)
                     if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
                         throw new Exception("Could not release master lock on file DB");
 
@@ -950,14 +984,14 @@ namespace SearchCacher
             }
         }
 
-        private void _SaveDB(FileDBConfig config, bool parentHasMaster = false, bool force = false)
+        private void _SaveDB(FileDBConfig config, bool parentHasMasterLock = false, bool force = false)
         {
             CancellationTokenSource cancelSource = new CancellationTokenSource();
             try
             {
                 Program.Log("Saving DB -> " + config.RootPath);
 
-                if (!parentHasMaster)
+                if (!parentHasMasterLock)
                     if (!_dbLock.RequestMasterLockAsync(cancelSource.Token).Result)
                         throw new Exception("Could not acquire master lock on file DB");
 
@@ -985,7 +1019,7 @@ namespace SearchCacher
             }
             finally
             {
-                if (!parentHasMaster)
+                if (!parentHasMasterLock)
                     if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
                         throw new Exception("Could not release master lock on file DB");
 
@@ -1005,44 +1039,64 @@ namespace SearchCacher
                 if (_configs is null)
                     return;
 
-                InitDirCount = 0;
-                InitFileCount = 0;
+                lock (_countLock)
+                {
+                    InitDirCount = 0;
+                    InitFileCount = 0;
+                }
+
+                long[] dirCounts = new long[_configs.Length];
+                long[] fileCounts = new long[_configs.Length];
 
                 List<Task> recursiveTasks = new();
-                foreach (var config in _configs)
-                    recursiveTasks.Add(Task.Run(() => Recursive(config.DB)));
+                for (int configIndex = 0; configIndex < _configs.Length; configIndex++)
+                {
+                    var config = _configs[configIndex];
+                    int index = configIndex;
+
+                    recursiveTasks.Add(Task.Run(() => Recursive(config.DB, ref dirCounts[index], ref fileCounts[index])));
+                }
 
                 Task.WaitAll(recursiveTasks);
 
-                if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
-                    throw new Exception("Could not release master lock on file DB");
+                lock (_countLock)
+                {
+                    InitDirCount = dirCounts.Sum();
+                    InitFileCount = fileCounts.Sum();
+                }
             }
             finally
             {
+                if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+                    throw new Exception("Could not release master lock on file DB");
+
                 cancelSource.Dispose();
             }
 
-            void Recursive(Dir parentDir)
+            void Recursive(Dir parentDir, ref long dirCount, ref long fileCount)
             {
                 foreach (var dir in parentDir.Directories)
                 {
                     dir.Parent = parentDir;
                     dir.Hash = BitConverter.ToInt64(MD5.HashData(Encoding.Unicode.GetBytes(dir.FullPath)));
-                    Recursive(dir);
+                    Recursive(dir, ref dirCount, ref fileCount);
                 }
 
-                InitDirCount += parentDir.Directories.Length;
+                dirCount += parentDir.Directories.Length;
 
                 foreach (var file in parentDir.Files)
                     file.Parent = parentDir;
 
-                InitFileCount += parentDir.Files.Length;
+                fileCount += parentDir.Files.Length;
             }
         }
 
         [JsonObject("FileDBConfig")]
         private class FileDBConfig
         {
+            [JsonProperty("Version")]
+            internal double Version { get; } = 2.0d;
+
             [JsonProperty("ID")]
             internal string ID { get; init; }
 
