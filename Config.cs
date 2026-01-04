@@ -42,9 +42,7 @@ namespace SearchCacher
 	[JsonObject("DBConfig")]
 	internal class DBConfig
 	{
-		/// <summary>
-		/// Gets or initializes the identifier.
-		/// </summary>
+		/// <summary> Gets or initializes the identifier. </summary>
 		[JsonProperty("ID")]
 		internal string ID { get; init; }
 
@@ -55,9 +53,7 @@ namespace SearchCacher
 		[JsonProperty("RootPath")]
 		internal string RootPath { get; set; } = "";
 
-		/// <summary>
-		/// Gets or sets the list of paths to ignore in the search.
-		/// </summary>
+		/// <summary> Gets or sets the list of paths to ignore in the search. </summary>
 		[JsonProperty("IgnoreList")]
 		internal List<IgnoreListEntry> IgnoreList { get; set; } = [];
 
@@ -69,9 +65,7 @@ namespace SearchCacher
 		[JsonProperty("FileDBPath")]
 		internal string? FileDBPath { get; set; }
 
-		/// <summary>
-		/// *.* is the default filter for everything
-		/// </summary>
+		/// <summary> *.* is the default filter for everything </summary>
 		[JsonProperty("WatchDogFilter")]
 		internal string? WatchDogFilter { get; set; } = "*.*";
 
@@ -83,7 +77,11 @@ namespace SearchCacher
 		[JsonProperty("Password")]
 		internal string Password { get; set; } = "";
 
-		public DBConfig()
+        /// <summary> Gets or sets the full path of the statistics file. </summary>
+        [JsonProperty("StatisticsPath")]
+        internal string? StatisticsPath { get; set; }
+
+        public DBConfig()
 		{
 			ID = Guid.NewGuid().ToString();
 		}
@@ -96,9 +94,10 @@ namespace SearchCacher
 			IgnoreList     = cfg.IgnoreList.ToList();
 			WatchDogFilter = cfg.WatchDogFilter;
 			UserName       = cfg.UserName;
+			StatisticsPath = cfg.StatisticsPath;
 
-			// Here we take the password of the webmodel as it may be a new one
-			Password = cfg.Password;
+            // Here we take the password of the webmodel as it may be a new one
+            Password = cfg.Password;
 		}
 	}
 
@@ -178,7 +177,15 @@ namespace SearchCacher
 		/// </summary>
 		internal string IgnorePathToAdd { get; set; } = "";
 
-		public WebDBConfigModel(DBConfig cfg)
+        /// <summary> Gets or sets the full path of the statistics file. </summary>
+        internal string? StatisticsPath { get; set; }
+
+        public WebDBConfigModel()
+        {
+            ID = Guid.NewGuid().ToString();
+        }
+
+        public WebDBConfigModel(DBConfig cfg)
 		{
 			RootPath       = cfg.RootPath;
 			IgnoreList     = new(cfg.IgnoreList);
@@ -186,15 +193,21 @@ namespace SearchCacher
 			WatchDogFilter = cfg.WatchDogFilter;
 			UserName       = cfg.UserName;
 			ID             = cfg.ID;
+			StatisticsPath = cfg.StatisticsPath;
 
-			// We do not copy the password for safety reasons as every user could potentially see the password in the web interface.
-			// But we still need the password in the WebConfigModel in order to set it to the actual config later
-			// Password = cfg.Password;
-		}
-
-		public WebDBConfigModel()
-		{
-			ID = Guid.NewGuid().ToString();
-		}
+            // We do not copy the password for safety reasons as every user could potentially see the password in the web interface.
+            // But we still need the password in the WebConfigModel in order to set it to the actual config later
+            // Password = cfg.Password;
+        }
 	}
+
+	internal class WebStatisticsModel
+	{
+		internal Statistics[] Stats { get; }
+
+        public WebStatisticsModel(Statistics[] stats)
+        {
+			Stats = stats;
+        }
+    }
 }

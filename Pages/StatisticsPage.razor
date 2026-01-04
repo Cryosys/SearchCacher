@@ -1,0 +1,54 @@
+﻿@page "/statistics"
+@using SearchCacher.Data
+@inject ISearchService SearchService
+
+<PageTitle>Statistics</PageTitle>
+
+<h3>Largest Files per Storage TOP 25</h3>
+<br/>
+
+@{
+    foreach (var stat in StatsModel.Stats)
+    {
+        <div style="background-color:#1f2937;border-radius:5px">
+            <h5 style="padding:10px 0px 0px 10px">@stat.Source</h5>
+            <div style="background-color:#374151;padding:10px;border-radius:0px 0px 5px 5px">
+                @foreach (var val in @stat.GetTop(0, 25))
+                {
+                    <div>[ @ToStorageUnit(val.size) ] @val.path</div>
+                }
+            </div>
+        </div>
+
+        <br />
+    }
+}
+
+
+@code {
+
+    internal WebStatisticsModel StatsModel { get; set; } = new WebStatisticsModel([]);
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+
+        StatsModel = SearchService.GetFileStatistics();
+    }
+
+    public string ToStorageUnit(long size)
+    {
+        if (size > GBSize)
+            return $"{(size / (double)GBSize):0.00} GB";
+        else if (size > MBSize)
+            return $"{(size / (double)MBSize):0.00} MB";
+        else if (size > KBSize)
+            return $"{(size / (double)KBSize):0.00} KB";
+        else
+            return $"{size} B";
+    }
+
+    public const long GBSize = 1024 * 1024 * 1024;
+    public const long MBSize = 1024 * 1024;
+    public const long KBSize = 1024;
+}

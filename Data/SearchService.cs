@@ -28,38 +28,11 @@ namespace SearchCacher.Data
 
 		WebConfigModel GetWebConfigModel();
 
-		IgnoreListEntry[] GetIgnoreList(WebDBConfigModel cfg);
+		WebStatisticsModel GetFileStatistics();
+
+        IgnoreListEntry[] GetIgnoreList(WebDBConfigModel cfg);
 
 		bool SetIgnoreList(string guid, List<IgnoreListEntry> ignoreList);
-	}
-
-	internal class DummySearchService : ISearchService
-	{
-		public string SearchPath => "";
-
-		public bool AllowOnlyLocalSettingsAccess() => false;
-
-		public Task<IEnumerable<SearchResult>> GetSearchResult(SearchSettings settings) => Task.FromResult<IEnumerable<SearchResult>>([new ISearcher.SearchResult(false, Array.Empty<string>(), "Cannot run search, searcher not initialized. Most likely because of an invalid config")]);
-
-		public Task InitDB(CancellationToken token) => Task.CompletedTask;
-
-		public void DelDB(string? searchPath) { }
-
-		public void AddPath(string searchPath, string path) { }
-
-		public void UpdatePath(string searchPath, string oldPath, string newPath) { }
-
-		public void DeletePath(string searchPath, string path) { }
-
-		public void SaveDB() { }
-
-		public void CleanUp() { }
-
-		public WebConfigModel GetWebConfigModel() => new WebConfigModel(new Config());
-
-		public IgnoreListEntry[] GetIgnoreList(WebDBConfigModel cfg) => [];
-
-		public bool SetIgnoreList(string guid, List<IgnoreListEntry> ignoreList) => true;
 	}
 
 	internal class SearchService : ISearchService
@@ -92,8 +65,6 @@ namespace SearchCacher.Data
 
 		public Task InitDB(CancellationToken token) => _searchHandler.InitDB(_cfg.DBConfigs, token);
 
-		public Task InitDB(WebDBConfigModel dbConfig) => _searchHandler.InitDB(dbConfig);
-
 		public void DelDB(string? guid) => _searchHandler.DelDB(guid);
 
 		public void AddPath(string searchPath, string path) => _searchHandler.AddPath(searchPath, path);
@@ -108,7 +79,9 @@ namespace SearchCacher.Data
 
 		public WebConfigModel GetWebConfigModel() => new WebConfigModel(_cfg);
 
-		public IgnoreListEntry[] GetIgnoreList(WebDBConfigModel cfg) => cfg.IgnoreList.ToArray();
+        public WebStatisticsModel GetFileStatistics() => new WebStatisticsModel(_searchHandler.GetStatistics());
+
+        public IgnoreListEntry[] GetIgnoreList(WebDBConfigModel cfg) => cfg.IgnoreList.ToArray();
 
 		public bool SetIgnoreList(string guid, List<IgnoreListEntry> ignoreList)
 		{
@@ -141,5 +114,36 @@ namespace SearchCacher.Data
 				}
 			}
 		}
-	}
+    }
+
+    internal class DummySearchService : ISearchService
+    {
+        public string SearchPath => "";
+
+        public bool AllowOnlyLocalSettingsAccess() => false;
+
+        public Task<IEnumerable<SearchResult>> GetSearchResult(SearchSettings settings) => Task.FromResult<IEnumerable<SearchResult>>([new ISearcher.SearchResult(false, Array.Empty<string>(), "Cannot run search, searcher not initialized. Most likely because of an invalid config")]);
+
+        public Task InitDB(CancellationToken token) => Task.CompletedTask;
+
+        public void DelDB(string? searchPath) { }
+
+        public void AddPath(string searchPath, string path) { }
+
+        public void UpdatePath(string searchPath, string oldPath, string newPath) { }
+
+        public void DeletePath(string searchPath, string path) { }
+
+        public void SaveDB() { }
+
+        public void CleanUp() { }
+
+        public WebConfigModel GetWebConfigModel() => new WebConfigModel(new Config());
+
+        public WebStatisticsModel GetFileStatistics() => new WebStatisticsModel([]);
+
+        public IgnoreListEntry[] GetIgnoreList(WebDBConfigModel cfg) => [];
+
+        public bool SetIgnoreList(string guid, List<IgnoreListEntry> ignoreList) => true;
+    }
 }
