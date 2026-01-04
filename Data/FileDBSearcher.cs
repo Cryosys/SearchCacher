@@ -11,8 +11,8 @@ namespace SearchCacher
     internal interface ISearcher
     {
         /// <summary>	Event queue for all listeners interested in CurrentSearchDir events. </summary>
-        /// <seealso cref="FileDBSearcher.CurrentSearchDir"/>
-        public event Action<string>? CurrentSearchDir;
+        /// <seealso cref="FileDBSearcher.InitDir"/>
+        public event Action<string>? InitDir;
 
         /// <summary>   Initializes the database. </summary>
         /// <returns>   The init Task. </returns>
@@ -85,7 +85,7 @@ namespace SearchCacher
 
     internal class FileDBSearcher : ISearcher
     {
-        public event Action<string>? CurrentSearchDir;
+        public event Action<string>? InitDir;
 
         internal long InitDirCount { get; private set; }
         internal long InitFileCount { get; private set; }
@@ -108,26 +108,33 @@ namespace SearchCacher
 
             foreach (var dbConfig in serviceConfig.DBConfigs)
             {
+                if (string.IsNullOrEmpty(dbConfig.FileDBPath))
+                {
+                    Program.Log("One of the DB config paths is invalid");
+                    continue;
+                }
+
+                if (string.IsNullOrWhiteSpace(dbConfig.StatisticsPath))
+                {
+                    FileInfo dbPathInfo = new FileInfo(dbConfig.FileDBPath);
+                    dbConfig.StatisticsPath = Path.Combine(dbPathInfo.Directory?.FullName ?? dbConfig.ID, dbPathInfo.Name + "_stats");
+                }
+
+                FileDBConfig? config;
                 if (System.IO.File.Exists(dbConfig.FileDBPath))
                 {
                     // Does not load all directories, as parent looped references are ignored
-                    using (FileStream fileStream = new FileStream(dbConfig.FileDBPath, FileMode.Open, FileAccess.Read))
-                    {
-                        var config = JsonExtensions.FromCryJson<FileDBConfig>(fileStream) ?? new FileDBConfig();
-                        config.FileSavePath = dbConfig.FileDBPath;
-                        config.IgnoreList = dbConfig.IgnoreList;
-                        configs.Add(config);
-
-                        if (string.IsNullOrWhiteSpace(dbConfig.StatisticsPath))
-                        {
-                            FileInfo dbPathInfo = new FileInfo(dbConfig.FileDBPath);
-                            dbConfig.StatisticsPath = Path.Combine(dbPathInfo.Directory.FullName, dbPathInfo.Name + "_stats");
-                        }
-
-                        config.Stats = new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath);
-                        config.Stats.Load();
-                    }
+                    using FileStream fileStream = new FileStream(dbConfig.FileDBPath, FileMode.Open, FileAccess.Read);
+                    config = JsonExtensions.FromCryJson<FileDBConfig>(fileStream) ?? new FileDBConfig();
+                    config.FileSavePath = dbConfig.FileDBPath;
+                    config.IgnoreList = dbConfig.IgnoreList;
                 }
+                else
+                    config = new FileDBConfig(dbConfig.ID, dbConfig.RootPath, dbConfig.FileDBPath, new Dir(dbConfig.RootPath, null), new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath));
+
+                config.Stats = new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath);
+                config.Stats.Load();
+                configs.Add(config);
             }
 
             _configs = configs.ToArray();
@@ -269,7 +276,7 @@ namespace SearchCacher
                 if (cancelToken.IsCancellationRequested || globalCancellationToken.IsCancellationRequested)
                     return;
 
-                CurrentSearchDir?.Invoke(newPath);
+                InitDir?.Invoke(newPath);
                 string[] innerDirs = Directory.GetDirectories(newPath);
                 List<Dir> dirs = new List<Dir>();
                 parentDir.Directories = new Dir[innerDirs.Length];

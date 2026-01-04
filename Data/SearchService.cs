@@ -39,7 +39,7 @@ namespace SearchCacher.Data
 
 	internal class SearchService : ISearchService
 	{
-		static List<WeakReference<Action<string>>> currentSearchDirChangedHandlers = new List<WeakReference<Action<string>>>();
+		static List<WeakReference<Action<string>>> initDirChangedHandlers = new List<WeakReference<Action<string>>>();
 		static object handlerLock = new object();
 
 		public string SearchPath => string.Join(",", _cfg?.DBConfigs.Select(x => "\"" + x.RootPath + "\"").ToArray() ??[]);
@@ -55,7 +55,7 @@ namespace SearchCacher.Data
 				_cfg.DBConfigs.Add(new DBConfig() { RootPath = Path.Combine(CryLib.Core.Paths.ExecuterPath, "fileDB") });
 
 			_searchHandler                   = new FileDBSearcher(_cfg, cfg.AutoSaveInterval);
-			_searchHandler.CurrentSearchDir += _searchHandler_CurrentSearchDir;
+			_searchHandler.InitDir += _searchHandler_InitDir;
 
 			if (cfg.AutoSaveEnabled)
 				_searchHandler.StartAutoSave();
@@ -98,21 +98,21 @@ namespace SearchCacher.Data
 			return true;
 		}
 
-		internal static void SubscribeToCurrentSearchDir(Action<string> callback)
+		internal static void SubscribeToInitDir(Action<string> callback)
 		{
 			lock (handlerLock)
-				currentSearchDirChangedHandlers.Add(new WeakReference<Action<string>>(callback));
+				initDirChangedHandlers.Add(new WeakReference<Action<string>>(callback));
 		}
 
-		private static void _searchHandler_CurrentSearchDir(string dir)
+		private void _searchHandler_InitDir(string dir)
 		{
 			lock (handlerLock)
 			{
-				for (int i = currentSearchDirChangedHandlers.Count - 1; i >= 0; i--)
+				for (int i = initDirChangedHandlers.Count - 1; i >= 0; i--)
 				{
-					WeakReference<Action<string>> handler = currentSearchDirChangedHandlers[i];
+					WeakReference<Action<string>> handler = initDirChangedHandlers[i];
 					if (!handler.TryGetTarget(out var action))
-						currentSearchDirChangedHandlers.RemoveAt(i);
+						initDirChangedHandlers.RemoveAt(i);
 
 					action?.Invoke(dir);
 				}

@@ -1,5 +1,4 @@
 using CryLib.Core;
-using Microsoft.Extensions.Hosting.Internal;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using SearchCacher.Data;
 using Syncfusion.Blazor;
@@ -28,6 +27,7 @@ namespace SearchCacher
 
 			_logHandler.LoggedEntry += _logHandler_LoggedEntry;
 			_logHandler.AddLog(LogTypes.Log);
+			_logHandler.AddLog(LogTypes.DBInit);
 			_logHandler.StartHandler();
 
 			if (!WindowsServiceHelpers.IsWindowsService())
@@ -81,7 +81,16 @@ namespace SearchCacher
 				}
 
 				_service = new SearchService(_serviceConfig);
-			}
+				SearchService.SubscribeToInitDir((dir) =>
+                {
+                    // This function should never throw an exception as it could cause loops
+                    try
+                    {
+                        _logHandler.Log(LogTypes.DBInit, "Init: " + dir);
+                    }
+                    catch { }
+				});
+            }
 
 			var builder = WebApplication.CreateBuilder(new WebApplicationOptions()
 			{
@@ -365,7 +374,8 @@ namespace SearchCacher
 
 		private enum LogTypes
 		{
-			Log
+			Log,
+			DBInit
 		}
 	}
 }

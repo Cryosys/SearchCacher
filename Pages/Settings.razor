@@ -228,7 +228,9 @@
         foreach (var dbConfig in Cfg.DBConfigs)
             SettingsConfigUIModels.Add(dbConfig.ID, new SettingsConfigUIModel(dbConfig.ID));
 
-        SearchCacher.Data.SearchService.SubscribeToCurrentSearchDir(async (dir) =>
+        // This causes issues with the JS backend because the updates seem to be too fast?
+        return;
+        SearchCacher.Data.SearchService.SubscribeToInitDir(async (dir) =>
         {
             await InvokeAsync(() =>
             {
