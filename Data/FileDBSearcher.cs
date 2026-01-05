@@ -1004,6 +1004,7 @@ namespace SearchCacher
 
                 lock (config.SaveLockObj)
                 {
+                    Program.Log("Saving Statistics for -> " + config.RootPath);
                     config.Stats.Save();
 
                     if (!config.IsDirty && !force)
