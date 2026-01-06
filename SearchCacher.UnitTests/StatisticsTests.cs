@@ -6,7 +6,13 @@ namespace SearchCacher.UnitTests
     {
         public StatisticsTests()
         {
-            _statistics = new Statistics("teststats.json", "test");
+            _statistics = new Statistics("teststats.json", "test", true);
+            _statistics.Start();
+        }
+
+        ~StatisticsTests()
+        {
+            _statistics.Stop();
         }
 
         [Test()]
@@ -20,8 +26,11 @@ namespace SearchCacher.UnitTests
             // Act
             _statistics.AddFile(size, hash, testFilePath);
 
+            // Wait for the statistics to process the queue
+            Thread.Sleep(50);
+
             // Assert
-            var tops = _statistics.GetTop(0, 100);
+            var tops = _statistics.GetTop(0, 25);
             NUnit.Framework.Assert.AreEqual(tops, new List<(string, long)>() { (testFilePath, size) });
         }
 
@@ -37,8 +46,11 @@ namespace SearchCacher.UnitTests
             _statistics.AddFile(size, hash, testFilePath);
             _statistics.AddFile(size, hash, testFilePath);
 
+            // Wait for the statistics to process the queue
+            Thread.Sleep(50);
+
             // Assert
-            var tops = _statistics.GetTop(0, 100);
+            var tops = _statistics.GetTop(0, 25);
             NUnit.Framework.Assert.AreEqual(tops, new List<(string, long)>() { (testFilePath, size) });
         }
 
@@ -51,11 +63,17 @@ namespace SearchCacher.UnitTests
             string testFilePath = "C:\\temp\\testfile.txt";
             _statistics.AddFile(size, hash, testFilePath);
 
+            // Wait for the statistics to process the queue
+            Thread.Sleep(50);
+
             // Act
             _statistics.RemoveFile(hash);
 
+            // Wait for the statistics to process the queue
+            Thread.Sleep(50);
+
             // Assert
-            var tops = _statistics.GetTop(0, 100);
+            var tops = _statistics.GetTop(0, 25);
             NUnit.Framework.Assert.AreEqual(tops, new List<(string, long)>() { });
         }
 

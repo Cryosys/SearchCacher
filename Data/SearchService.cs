@@ -79,7 +79,7 @@ namespace SearchCacher.Data
 
 		public void SaveDB() => _searchHandler.SaveDB();
 
-		public void CleanUp() => _searchHandler.StopAutoSave();
+		public void CleanUp() => _searchHandler.Shutdown();
 
 		public WebConfigModel GetWebConfigModel() => new WebConfigModel(_cfg);
 

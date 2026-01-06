@@ -66,6 +66,10 @@ namespace SearchCacher
         /// <seealso cref="FileDBSearcher.DelDB(string?)"/>
         public void DelDB(string? guid);
 
+        /// <summary>	Stops all related threads. </summary>
+        /// <seealso cref="FileDBSearcher.Shutdown()"/>
+        public void Shutdown();
+
         public struct SearchResult
         {
             public bool Success { get; }
@@ -103,9 +107,9 @@ namespace SearchCacher
         public FileDBSearcher(Config serviceConfig, int autoSaveInterval = 5)
         {
             _autoSaveInterval = autoSaveInterval;
-
             List<FileDBConfig> configs = new List<FileDBConfig>();
 
+            Program.Log("Importing Databases");
             foreach (var dbConfig in serviceConfig.DBConfigs)
             {
                 if (string.IsNullOrEmpty(dbConfig.FileDBPath))
@@ -113,6 +117,8 @@ namespace SearchCacher
                     Program.Log("One of the DB config paths is invalid");
                     continue;
                 }
+                
+                Program.Log("Importing Database " + dbConfig.FileDBPath);
 
                 if (string.IsNullOrWhiteSpace(dbConfig.StatisticsPath))
                 {
@@ -130,11 +136,13 @@ namespace SearchCacher
                     config.IgnoreList = dbConfig.IgnoreList;
                 }
                 else
-                    config = new FileDBConfig(dbConfig.ID, dbConfig.RootPath, dbConfig.FileDBPath, new Dir(dbConfig.RootPath, null), new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath));
+                    config = new FileDBConfig(dbConfig.ID, dbConfig.RootPath, dbConfig.FileDBPath, new Dir(dbConfig.RootPath, null), new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath, dbConfig.CollectStats));
 
-                config.Stats = new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath);
+                config.Stats = new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath, dbConfig.CollectStats);
                 config.Stats.Load();
+                config.Stats.Start();
                 configs.Add(config);
+                Program.Log("Database loaded");
             }
 
             _configs = configs.ToArray();
@@ -158,7 +166,12 @@ namespace SearchCacher
                         throw new Exception("Could not acquire master lock on file DB");
                     }
 
+                DateTime preStartTime = DateTime.Now;
                 FileDBConfig? fileDBConfig = _configs.FirstOrDefault(c => c.ID == configID);
+
+                Lock countLock = new Lock();
+                long initDirCount = 0;
+                long initFileCount = 0;
 
                 try
                 {
@@ -192,10 +205,10 @@ namespace SearchCacher
                                 long dirCount = 0, fileCount = 0;
                                 Recursive(fileDBConfig.Stats, baseDirPaths[index], tmpDir, globalCancellationToken, ref dirCount, ref fileCount);
 
-                                lock (_countLock)
+                                lock (countLock)
                                 {
-                                    InitDirCount += dirCount;
-                                    InitFileCount += fileCount;
+                                    initDirCount += dirCount;
+                                    initFileCount += fileCount;
                                 }
                             }
                             catch (Exception ex)
@@ -249,6 +262,12 @@ namespace SearchCacher
                     _SaveDB(fileDBConfig, true, true);
 
                     Program.Log("Finished init on " + fileDBConfig.RootPath);
+                    Program.Log("DB init for root " + fileDBConfig?.RootPath + " took: " + (DateTime.Now - preStartTime).ToString("g"));
+                    Program.Log($"Got {initDirCount.ToString("#,##0")} directories and {initFileCount.ToString("#,##0")} files");
+
+                    // Just to make the all init count possible
+                    InitDirCount += initDirCount;
+                    InitFileCount += initFileCount;
                 }
                 catch (Exception ex)
                 {
@@ -362,7 +381,7 @@ namespace SearchCacher
                         dbConfig.StatisticsPath = Path.Combine(dbPathInfo.Parent.FullName, "search_stats");
                     }
 
-                    var fileDBConfig = new FileDBConfig(dbConfig.ID, dbConfig.RootPath, dbConfig.FileDBPath, new Dir(dbConfig.RootPath, null), new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath));
+                    var fileDBConfig = new FileDBConfig(dbConfig.ID, dbConfig.RootPath, dbConfig.FileDBPath, new Dir(dbConfig.RootPath, null), new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath, dbConfig.CollectStats));
                     _configs[index] = fileDBConfig;
 
                     initTasks.Add(InitDB(fileDBConfig.ID, globalCancellationToken, true));
@@ -884,6 +903,14 @@ namespace SearchCacher
             return stats.ToArray();
         }
 
+        public void Shutdown()
+        {
+            foreach(var config in _configs)
+                config.Stats?.Stop();
+
+            StopAutoSave();
+        }
+
         public void StartAutoSave()
         {
             lock (_autosaveLock)
@@ -1047,6 +1074,8 @@ namespace SearchCacher
                 if (_configs is null)
                     return;
 
+                Program.Log("Restoring database relations");
+
                 lock (_countLock)
                 {
                     InitDirCount = 0;
@@ -1072,6 +1101,12 @@ namespace SearchCacher
                     InitDirCount = dirCounts.Sum();
                     InitFileCount = fileCounts.Sum();
                 }
+                Program.Log("Database relations restored");
+            }
+            catch(Exception ex)
+            {
+                Program.Log("Failed to restore database relations. " + ex.Message);
+                throw;
             }
             finally
             {
@@ -1142,7 +1177,7 @@ namespace SearchCacher
                 RootPath = string.Empty;
                 FileSavePath = string.Empty;
                 DB = new Dir();
-                Stats = new Statistics(null, "Unanitialized");
+                Stats = new Statistics(null, "Unanitialized", true);
             }
 
             public FileDBConfig(string guid, string rootPath, string fileSavePath, Dir db, Statistics stats)

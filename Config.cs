@@ -81,6 +81,9 @@ namespace SearchCacher
         [JsonProperty("StatisticsPath")]
         internal string? StatisticsPath { get; set; }
 
+		[JsonProperty("CollectStats")]
+		internal bool CollectStats { get; set; } = true;
+
         public DBConfig()
 		{
 			ID = Guid.NewGuid().ToString();
@@ -95,6 +98,7 @@ namespace SearchCacher
 			WatchDogFilter = cfg.WatchDogFilter;
 			UserName       = cfg.UserName;
 			StatisticsPath = cfg.StatisticsPath;
+			CollectStats   = cfg.CollectStats;
 
             // Here we take the password of the webmodel as it may be a new one
             Password = cfg.Password;
@@ -180,6 +184,9 @@ namespace SearchCacher
         /// <summary> Gets or sets the full path of the statistics file. </summary>
         internal string? StatisticsPath { get; set; }
 
+        /// <summary> True to enable collection of statistics for the specified root path. </summary>
+        internal bool CollectStats { get; set; }
+
         public WebDBConfigModel()
         {
             ID = Guid.NewGuid().ToString();
@@ -194,6 +201,7 @@ namespace SearchCacher
 			UserName       = cfg.UserName;
 			ID             = cfg.ID;
 			StatisticsPath = cfg.StatisticsPath;
+			CollectStats   = cfg.CollectStats;
 
             // We do not copy the password for safety reasons as every user could potentially see the password in the web interface.
             // But we still need the password in the WebConfigModel in order to set it to the actual config later

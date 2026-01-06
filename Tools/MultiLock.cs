@@ -165,7 +165,7 @@
         }
 
         public Task<bool> ReleaseMasterLockAsync(CancellationToken token)
-        //{
+        {
             return Task.Run(() =>
             {
                 Program.Log("Releasing master lock async");
