@@ -28,6 +28,10 @@
 	  <None Remove=".gitignore" />
 	</ItemGroup>
 
+	<ItemGroup Condition="'$(Configuration)' == 'Debug'">
+		<InternalsVisibleTo Include="SearchCacher.PerformanceTests" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="CryLib.Core" Version="3.1.0" />
 		<PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.1" />
