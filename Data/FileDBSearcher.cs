@@ -74,17 +74,24 @@ namespace SearchCacher
         {
             public bool Success { get; }
 
-            public string[] Result { get; }
+            public SingleSearchResult[] Result { get; }
 
             public string Error { get; }
 
-            public SearchResult(bool success, string[] result, string error = "")
+            public SearchResult(bool success, SingleSearchResult[] result, string error = "")
             {
                 Success = success;
                 Result = result;
                 Error = error;
             }
         }
+    }
+
+    public struct SingleSearchResult(string path, long sizeInBytes)
+    {
+        public string Path { get; } = path;
+
+        public long SizeInBytes { get; } = sizeInBytes;
     }
 
     internal class FileDBSearcher : ISearcher
@@ -697,8 +704,8 @@ namespace SearchCacher
         public IEnumerable<ISearcher.SearchResult> Search(SearchSettings searchSettings)
         {
             CancellationTokenSource cancelSource = new CancellationTokenSource();
-            List<List<string>> results = new List<List<string>>();
-            List<string> dbResults = new List<string>();
+            List<List<SingleSearchResult>> results = new List<List<SingleSearchResult>>();
+            List<SingleSearchResult> dbResults = new List<SingleSearchResult>();
 
             BlockingCollection<ISearcher.SearchResult> searchResults = new BlockingCollection<ISearcher.SearchResult>();
 
@@ -710,7 +717,7 @@ namespace SearchCacher
                 Program.Log($"search path: {searchSettings}; pattern: {searchSettings.Pattern}");
 
                 if (_configs is null || _configs.Length == 0)
-                    return [new ISearcher.SearchResult(false, Array.Empty<string>(), "DB is not initialized")];
+                    return [new ISearcher.SearchResult(false, Array.Empty<SingleSearchResult>(), "DB is not initialized")];
 
                 Task[] totalSearchTasks = new Task[_configs.Length];
 
@@ -746,7 +753,7 @@ namespace SearchCacher
                                     continue;
                                 }
                                 else
-                                    searchResults.Add(new ISearcher.SearchResult(false, Array.Empty<string>(), "Could not find base search path"));
+                                    searchResults.Add(new ISearcher.SearchResult(false, Array.Empty<SingleSearchResult>(), "Could not find base search path"));
                             }
                         }
 
@@ -755,7 +762,7 @@ namespace SearchCacher
                         for (int i = 0; i < baseSearchDir.Directories.Length; i++)
                         {
                             Dir dir = baseSearchDir.Directories[i];
-                            results.Add(new List<string>());
+                            results.Add(new List<SingleSearchResult>());
 
                             if (searchPathSettings.UseIgnoreList)
                                 if (config.IgnoreList.Any(ignorePath => ignorePath.Hash == dir.Hash))
@@ -799,7 +806,7 @@ namespace SearchCacher
 
             results.Add(dbResults);
 
-            List<string> combinedList = new List<string>();
+            List<SingleSearchResult> combinedList = new List<SingleSearchResult>();
             foreach (var result in results)
                 combinedList.AddRange(result);
 
@@ -813,7 +820,7 @@ namespace SearchCacher
 
             return returnResults;
 
-            void RecursiveSearch(Dir curDir, List<string> foundFiles, List<IgnoreListEntry> ignoreList)
+            void RecursiveSearch(Dir curDir, List<SingleSearchResult> foundFiles, List<IgnoreListEntry> ignoreList)
             {
                 SearchDirs(curDir, foundFiles, ignoreList);
 
@@ -821,7 +828,7 @@ namespace SearchCacher
                     SearchFiles(curDir, foundFiles, ignoreList);
             }
 
-            void SearchDirs(Dir curDir, List<string> foundFiles, List<IgnoreListEntry> ignoreList, bool searchRecursive = true)
+            void SearchDirs(Dir curDir, List<SingleSearchResult> foundFiles, List<IgnoreListEntry> ignoreList, bool searchRecursive = true)
             {
                 foreach (var dir in curDir.Directories)
                 {
@@ -838,7 +845,8 @@ namespace SearchCacher
                                 if (!fullPath.EndsWith("\\"))
                                     fullPath += "\\";
 
-                                foundFiles.Add(fullPath);
+                                // Directories do not have a size
+                                foundFiles.Add(new SingleSearchResult(fullPath, -1));
                             }
                         }
                         else if (Regex.IsMatch(dir.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
@@ -847,7 +855,7 @@ namespace SearchCacher
                             if (!fullPath.EndsWith("\\"))
                                 fullPath += "\\";
 
-                            foundFiles.Add(fullPath);
+                            foundFiles.Add(new SingleSearchResult(fullPath, -1));
                         }
                     }
 
@@ -856,7 +864,7 @@ namespace SearchCacher
                 }
             }
 
-            void SearchFiles(Dir dir, List<string> foundFiles, List<IgnoreListEntry> ignoreList)
+            void SearchFiles(Dir dir, List<SingleSearchResult> foundFiles, List<IgnoreListEntry> ignoreList)
             {
                 foreach (var file in dir.Files)
                 {
@@ -865,17 +873,17 @@ namespace SearchCacher
 
                     if (searchSettings.SearchOnlyFileExt && searchSettings.FileExtensions.Any(ext => ext == file.Extension))
                     {
-                        foundFiles.Add(file.FullPath);
+                        foundFiles.Add(new (file.FullPath, file.Size));
                         continue;
                     }
 
                     if (searchSettings.SearchOnFullPath)
                     {
                         if (Regex.IsMatch(file.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-                            foundFiles.Add(file.FullPath);
+                            foundFiles.Add(new (file.FullPath, file.Size));
                     }
                     else if (Regex.IsMatch(file.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-                        foundFiles.Add(file.FullPath);
+                        foundFiles.Add(new (file.FullPath, file.Size));
                     else if (searchSettings.SearchInFiles && searchSettings.FileExtensions.Any(ext => ext == file.Extension))
                     {
                         StringComparison rule = searchSettings.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
@@ -885,7 +893,7 @@ namespace SearchCacher
                         while ((line = reader.ReadLine()) != null)
                             if (line.Contains(searchSettings.Pattern, rule))
                             {
-                                foundFiles.Add(file.FullPath);
+                                foundFiles.Add(new (file.FullPath, file.Size));
                                 break;
                             }
                     }
@@ -975,7 +983,7 @@ namespace SearchCacher
             {
                 while (!_autosaveCancellationTokenSource.IsCancellationRequested)
                 {
-                    Task.Delay(TimeSpan.FromMinutes(_autoSaveInterval), _autosaveCancellationTokenSource.Token).Wait(_autosaveCancellationTokenSource.Token);
+                    Task.Delay(TimeSpan.FromMinutes(_autoSaveInterval), _autosaveCancellationTokenSource.Token).Wait();
                     _SaveDB();
                 }
             }
@@ -1301,9 +1309,19 @@ namespace SearchCacher
             Name = name;
             Parent = parent;
             Extension = Path.GetExtension(name);
+            
             var file = new FileInfo(FullPath);
-
             Size = file.Length;
+
+            Hash = BitConverter.ToInt64(MD5.HashData(Encoding.Unicode.GetBytes(FullPath)));
+        }
+
+        public File(string name, Dir parent, long size)
+        {
+            Name = name;
+            Parent = parent;
+            Extension = Path.GetExtension(name);
+            Size = size;
             Hash = BitConverter.ToInt64(MD5.HashData(Encoding.Unicode.GetBytes(FullPath)));
         }
     }

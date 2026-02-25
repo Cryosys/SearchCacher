@@ -126,7 +126,7 @@ namespace SearchCacher.Data
 
         public bool AllowOnlyLocalSettingsAccess() => false;
 
-        public Task<IEnumerable<SearchResult>> GetSearchResult(SearchSettings settings) => Task.FromResult<IEnumerable<SearchResult>>([new ISearcher.SearchResult(false, Array.Empty<string>(), "Cannot run search, searcher not initialized. Most likely because of an invalid config")]);
+        public Task<IEnumerable<SearchResult>> GetSearchResult(SearchSettings settings) => Task.FromResult<IEnumerable<SearchResult>>([new ISearcher.SearchResult(false, Array.Empty<SingleSearchResult>(), "Cannot run search, searcher not initialized. Most likely because of an invalid config")]);
 
         public Task InitDB(CancellationToken token) => Task.CompletedTask;
 

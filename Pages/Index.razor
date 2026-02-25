@@ -269,14 +269,22 @@
         <SfButton style="margin:5px" @onclick=Search>Search</SfButton>
     </div>
 
-    <SfGrid @ref="FileGrid" TValue="string" DataSource="@data.Paths" AllowSorting="true" ContextMenuItems="@FileGridContextMenuItems" EnableVirtualization="true" Height="800">
+    <SfGrid @ref="FileGrid" DataSource="@data.Paths" TValue="SingleSearchResult" AllowSorting="true" ContextMenuItems="@FileGridContextMenuItems" EnableVirtualization="true" Height="800">
         <GridSelectionSettings Mode="SelectionMode.Row" EnableSimpleMultiRowSelection="false"></GridSelectionSettings>
-        <GridEvents ContextMenuItemClicked="OnContextMenuClick" TValue="string"></GridEvents>
+        <GridEvents ContextMenuItemClicked="OnContextMenuClick" TValue="SingleSearchResult"></GridEvents>
         <GridColumns>
-            <GridColumn HeaderText="File" IsPrimaryKey="true">
+            <GridColumn HeaderText="File" IsPrimaryKey="true" AllowSorting="true" AllowSearching="true" Field="@nameof(SingleSearchResult.Path)"/>
+            <GridColumn HeaderText="Size" AllowSorting="true" AutoFit="true">
                 <Template>
                     @{
-                        <div>@(context as string)</div>
+                        if ((context is SingleSearchResult result))
+                        {
+                            <div>@(ToStorageUnit(result.SizeInBytes))</div>
+                        }
+                        else
+                        {
+                            <div>-</div>
+                        }
                     }
                 </Template>
             </GridColumn>
@@ -300,6 +308,207 @@
 </script>
 
 @code {
+    FormData data = new FormData();
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        data.Cfg = searchService.GetWebConfigModel();
+    }
+
+    protected async Task Search()
+    {
+        if (data.SearchTask is not null)
+        {
+            ShowToast("Previous search is still in progress...", 10000);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(data.Pattern))
+        {
+            ShowToast("Empty search pattern is not allowed.", 10000);
+            return;
+        }
+
+        try
+        {
+            if (!data.SearchOnlyFileExt)
+                System.Text.RegularExpressions.Regex.IsMatch("", data.Pattern);
+        }
+        catch (ArgumentException)
+        {
+            ShowToast("Pattern is not a valid regex pattern", 10000);
+            return;
+        }
+
+        ShowToast("Starting search...");
+        data.IsSpinnerVisible = true;
+        SetSpinnerVisibility(true);
+        await Task.Delay(100);
+        data.Paths = [];
+
+        DateTime preSearch = DateTime.Now;
+
+        // Prepare list of paths to be used
+        var searchSettings = new SearchSettings(
+            pattern: data.Pattern,
+            searchOnlyFileExt: data.SearchOnlyFileExt,
+            searchInFiles: data.SearchInFiles,
+            searchDirs: data.SearchForDirs,
+            searchFiles: data.SearchForFiles,
+            searchOnFullPath: data.SearchOnFullPath,
+            caseSensitive: data.CaseSensitive,
+            fileExtensions: data.FileExtensions.Where(ext => ext.IsSelected).Select(ext => ext.Name).ToArray());
+
+        foreach (var config in data.Cfg?.DBConfigs ?? [])
+        {
+            if (config.IsSelected)
+                searchSettings.SearchPaths.Add(new SearchPathSettings(config.ID ?? string.Empty, config.SearchPath, config.UseIgnoreList));
+        }
+
+        data.SearchTask = searchService.GetSearchResult(searchSettings);
+        await data.SearchTask;
+        if (data.SearchTask.Status != TaskStatus.RanToCompletion)
+        {
+            await Task.Delay(100);
+            ShowToast("Failed to complete search. Ex: " + data.SearchTask.Exception?.ToString(), 10000);
+            return;
+        }
+
+        IEnumerable<ISearcher.SearchResult> results = data.SearchTask.Result;
+
+        data.LastSearchTime = (DateTime.Now - preSearch).ToString(@"mm\:ss\:ffff", new System.Globalization.CultureInfo("en-US"));
+        data.IsSpinnerVisible = false;
+        SetSpinnerVisibility(false);
+        data.SearchTask = null;
+
+        List<SingleSearchResult> combinedPaths = new();
+
+        foreach (var result in results)
+        {
+            await Task.Delay(100);
+            if (!result.Success)
+                ShowToast(result.Error, 10000);
+            else
+                combinedPaths.AddRange(result.Result);
+        }
+
+        data.Paths = combinedPaths;
+
+        await Task.Delay(100);
+        ShowToast("Finished search");
+    }
+
+    protected async void ShowToast(string info, int timeout = 5000)
+    {
+        await this.data.ToastObj.ShowAsync(new ToastModel()
+            {
+                Content = info,
+                Timeout = timeout
+            });
+    }
+
+    public void OnContextMenuClick(ContextMenuClickEventArgs<SingleSearchResult> args)
+    {
+        var selectionTask = FileGrid.GetSelectedRecordsAsync();
+        if (!selectionTask.Wait(5000))
+        {
+            ShowToast("Failed to copy to clipboard");
+            return;
+        }
+
+        var entries = selectionTask.Result;
+        if (entries.Count == 0)
+        {
+            ShowToast("Somehow no path was selected in the grid, please try again...");
+            return;
+        }
+
+        List<string> copyText = new List<string>();
+
+        if (args.Item.Id == "searchinpath")
+        {
+            if (entries.Count > 1)
+            {
+                // We do not know which path is the desired search path
+                ShowToast("More than 1 path is selected, please only select one in order to use it as the search path");
+                return;
+            }
+
+            var dirName = Path.GetDirectoryName(entries.FirstOrDefault().Path) ?? "";
+
+            foreach (var config in data.Cfg?.DBConfigs ?? [])
+            {
+                if (dirName.Contains(config.SearchPath))
+                {
+                    config.SearchPath = dirName;
+                    break;
+                }
+            }
+        }
+        else
+            foreach (var entry in entries)
+                if (args.Item.Id == "copyfilename")
+                    copyText.Add(Path.GetFileName(entry.Path));
+                else if (args.Item.Id == "copyfolderpath")
+                    copyText.Add(Path.GetDirectoryName(entry.Path));
+                else if (args.Item.Id == "copypath")
+                    copyText.Add(entry.Path);
+
+        JSRuntime.InvokeVoidAsync("copyClipboard", string.Join(";", string.Join(";", copyText)));
+    }
+
+    public async void PatternTextBoxKeyUp(KeyboardEventArgs args)
+    {
+        if (args.Key == "Enter")
+        {
+            // We have to do it like that here as it seems like that the event is not in the UI thread for whatever reason
+            await InvokeAsync(Search);
+            StateHasChanged();
+        }
+    }
+
+    public void AddFileExtension(string[] names)
+    {
+        foreach (var name in names)
+        {
+            if (string.IsNullOrWhiteSpace(name) || data.FileExtensions.Any(x => x.Name == name))
+                continue;
+
+            data.FileExtensions.Add(new FileExtensionEntry(true, name));
+        }
+
+        StateHasChanged();
+    }
+
+    public void SetSpinnerVisibility(bool visible)
+    {
+        data.SpinnerVisibility = visible ? "visible" : "collapse";
+        data.SpinnerDisplayMode = visible ? "block" : "none";
+        StateHasChanged();
+    }
+
+    public string ToStorageUnit(long size)
+    {
+        if (size < 0)
+            return "-";
+        if (size > TBSize)
+            return $"{(size / (double)TBSize):0.00} TB";
+        if (size > GBSize)
+            return $"{(size / (double)GBSize):0.00} GB";
+        else if (size > MBSize)
+            return $"{(size / (double)MBSize):0.00} MB";
+        else if (size > KBSize)
+            return $"{(size / (double)KBSize):0.00} KB";
+        else
+            return $"{size} B";
+    }
+
+    public const long TBSize = 1024L * 1024L * 1024L * 1024L;
+    public const long GBSize = 1024L * 1024L * 1024L;
+    public const long MBSize = 1024L * 1024L;
+    public const long KBSize = 1024L;
+
     class FormData
     {
         public SfToast? ToastObj;
@@ -311,7 +520,7 @@
         public string SpinnerVisibility { get; set; } = "collapse";
         public string SpinnerDisplayMode { get; set; } = "none";
 
-        public List<string> Paths { get; set; } = [];
+        public List<SingleSearchResult> Paths { get; set; } = [];
         public string Pattern { get; set; } = "nua*";
 
         public Task<IEnumerable<ISearcher.SearchResult>>? SearchTask;
@@ -430,9 +639,7 @@
         }
     }
 
-    FormData data = new FormData();
-
-    private SfGrid<string>? FileGrid;
+    private SfGrid<SingleSearchResult>? FileGrid;
 
     List<object> FileGridContextMenuItems = new()
     {
@@ -469,182 +676,4 @@
         ".bat",
         ".ps1",
     ];
-
-    protected override void OnInitialized()
-    {
-        base.OnInitialized();
-        data.Cfg = searchService.GetWebConfigModel();
-    }
-
-    protected async Task Search()
-    {
-        if (data.SearchTask is not null)
-        {
-            ShowToast("Previous search is still in progress...", 10000);
-            return;
-        }
-
-        if (string.IsNullOrWhiteSpace(data.Pattern))
-        {
-            ShowToast("Empty search pattern is not allowed.", 10000);
-            return;
-        }
-
-        try
-        {
-            if (!data.SearchOnlyFileExt)
-                System.Text.RegularExpressions.Regex.IsMatch("", data.Pattern);
-        }
-        catch (ArgumentException)
-        {
-            ShowToast("Pattern is not a valid regex pattern", 10000);
-            return;
-        }
-
-        ShowToast("Starting search...");
-        data.IsSpinnerVisible = true;
-        SetSpinnerVisibility(true);
-        await Task.Delay(100);
-        data.Paths = [];
-
-        DateTime preSearch = DateTime.Now;
-
-        // Prepare list of paths to be used
-        var searchSettings = new SearchSettings(
-            pattern: data.Pattern,
-            searchOnlyFileExt: data.SearchOnlyFileExt,
-            searchInFiles: data.SearchInFiles,
-            searchDirs: data.SearchForDirs,
-            searchFiles: data.SearchForFiles,
-            searchOnFullPath: data.SearchOnFullPath,
-            caseSensitive: data.CaseSensitive,
-            fileExtensions: data.FileExtensions.Where(ext => ext.IsSelected).Select(ext => ext.Name).ToArray());
-
-        foreach (var config in data.Cfg?.DBConfigs ?? [])
-        {
-            if (config.IsSelected)
-                searchSettings.SearchPaths.Add(new SearchPathSettings(config.ID ?? string.Empty, config.SearchPath, config.UseIgnoreList));
-        }
-
-        data.SearchTask = searchService.GetSearchResult(searchSettings);
-        await data.SearchTask;
-        if (data.SearchTask.Status != TaskStatus.RanToCompletion)
-        {
-            await Task.Delay(100);
-            ShowToast("Failed to complete search. Ex: " + data.SearchTask.Exception?.ToString(), 10000);
-            return;
-        }
-
-        IEnumerable<ISearcher.SearchResult> results = data.SearchTask.Result;
-
-        data.LastSearchTime = (DateTime.Now - preSearch).ToString(@"mm\:ss\:ffff", new System.Globalization.CultureInfo("en-US"));
-        data.IsSpinnerVisible = false;
-        SetSpinnerVisibility(false);
-        data.SearchTask = null;
-
-        List<string> combinedPaths = new List<string>();
-
-        foreach (var result in results)
-        {
-            await Task.Delay(100);
-            if (!result.Success)
-                ShowToast(result.Error, 10000);
-            else
-                combinedPaths.AddRange(result.Result);
-        }
-        
-        data.Paths = combinedPaths;
-
-        await Task.Delay(100);
-        ShowToast("Finished search");
-    }
-
-    protected async void ShowToast(string info, int timeout = 5000)
-    {
-        await this.data.ToastObj.ShowAsync(new ToastModel()
-            {
-                Content = info,
-                Timeout = timeout
-            });
-    }
-
-    public void OnContextMenuClick(ContextMenuClickEventArgs<string> args)
-    {
-        var selectionTask = FileGrid.GetSelectedRecordsAsync();
-        if (!selectionTask.Wait(5000))
-        {
-            ShowToast("Failed to copy to clipboard");
-            return;
-        }
-
-        var entries = selectionTask.Result;
-        if (entries.Count == 0)
-        {
-            ShowToast("Somehow no path was selected in the grid, please try again...");
-            return;
-        }
-
-        List<string> copyText = new List<string>();
-
-        if (args.Item.Id == "searchinpath")
-        {
-            if (entries.Count > 1)
-            {
-                // We do not know which path is the desired search path
-                ShowToast("More than 1 path is selected, please only select one in order to use it as the search path");
-                return;
-            }
-
-            var dirName = Path.GetDirectoryName(entries.First()) ?? "";
-
-            foreach (var config in data.Cfg?.DBConfigs ?? [])
-            {
-                if (dirName.Contains(config.SearchPath))
-                {
-                    config.SearchPath = dirName;
-                    break;
-                }
-            }
-        }
-        else
-            foreach (var entry in entries)
-                if (args.Item.Id == "copyfilename")
-                    copyText.Add(Path.GetFileName(entry));
-                else if (args.Item.Id == "copyfolderpath")
-                    copyText.Add(Path.GetDirectoryName(entry));
-                else if (args.Item.Id == "copypath")
-                    copyText.Add(entry);
-
-        JSRuntime.InvokeVoidAsync("copyClipboard", string.Join(";", string.Join(";", copyText)));
-    }
-
-    public async void PatternTextBoxKeyUp(KeyboardEventArgs args)
-    {
-        if (args.Key == "Enter")
-        {
-            // We have to do it like that here as it seems like that the event is not in the UI thread for whatever reason
-            await InvokeAsync(Search);
-            StateHasChanged();
-        }
-    }
-
-    public void AddFileExtension(string[] names)
-    {
-        foreach (var name in names)
-        {
-            if (string.IsNullOrWhiteSpace(name) || data.FileExtensions.Any(x => x.Name == name))
-                continue;
-
-            data.FileExtensions.Add(new FileExtensionEntry(true, name));
-        }
-
-        StateHasChanged();
-    }
-
-    public void SetSpinnerVisibility(bool visible)
-    {
-        data.SpinnerVisibility = visible ? "visible" : "collapse";
-        data.SpinnerDisplayMode = visible ? "block" : "none";
-        StateHasChanged();
-    }
 }
