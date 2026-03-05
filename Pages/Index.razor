@@ -40,20 +40,29 @@
                             <tbody>
                                 <tr>
                                     <td>
-                                        <SfTooltip Target="#searchOnlyFileExtIcon" Content="Searches only in file extensions and ignores all other settings" Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
-                                            <svg id="searchOnlyFileExtIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
-                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
-                                                    </path>
-                                                </g>
-                                            </svg>
+                                        <SfTooltip Target="#searchOnlyFileExtIcon" Position="Position.LeftCenter" WindowCollision="true" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <ContentTemplate>
+                                                <div class="tooltipContent">
+                                                    Searches only in file extensions and ignores all other settings
+                                                </div>
+                                            </ContentTemplate>
+                                            <ChildContent>
+                                                <div id="searchOnlyFileExtIcon" class="iconDiv">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                        <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                            <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                            </path>
+                                                        </g>
+                                                    </svg>
+                                                </div>
+                                            </ChildContent>
                                         </SfTooltip>
                                     </td>
                                     <td><SfSwitch style="margin-top:3px" @bind-Checked="data.SearchOnlyFileExt" /></td>
@@ -61,20 +70,29 @@
                                 </tr>
                                 <tr>
                                     <td>
-                                        <SfTooltip Target="#searchInFilesIcon" Content="Searches in file content, this can take a VERY long time depending on the amount of data. Searches only in files which extension was selected below." Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
-                                            <svg id="searchInFilesIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
-                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
-                                                    </path>
-                                                </g>
-                                            </svg>
+                                        <SfTooltip Target="#searchInFilesIcon" Position="Position.LeftCenter" WindowCollision="true" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <ContentTemplate>
+                                                <div class="tooltipContent">
+                                                    Searches in file content, this can take a VERY long time depending on the amount of data. Searches only in files which extension was selected below.
+                                                </div>
+                                            </ContentTemplate>
+                                            <ChildContent>
+                                                <div id="searchInFilesIcon" class="iconDiv">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                        <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                            <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                            </path>
+                                                        </g>
+                                                    </svg>
+                                                </div>
+                                            </ChildContent>
                                         </SfTooltip>
                                     </td>
                                     <td><SfSwitch style="margin-top:3px" @bind-Checked="data.SearchInFiles" /></td>
@@ -82,20 +100,29 @@
                                 </tr>
                                 <tr>
                                     <td>
-                                        <SfTooltip Target="#searchOnFullPathIcon" Content="Contrary to the regular search which only considers directory and file names, this feature uses the full path of the directory and files. This allowes for more complex searches like finding some folders containing the text tax and then maybe a date for example." Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
-                                            <svg id="searchOnFullPathIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
-                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
-                                                    </path>
-                                                </g>
-                                            </svg>
+                                        <SfTooltip Target="#searchOnFullPathIcon" Position="Position.LeftCenter" WindowCollision="true" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <ContentTemplate>
+                                                <div class="tooltipContent">
+                                                    Contrary to the regular search which only considers directory and file names, this feature uses the full path of the directory and files. This allowes for more complex searches like finding some folders containing the text tax and then maybe a date for example.
+                                                </div>
+                                            </ContentTemplate>
+                                            <ChildContent>
+                                                <div id="searchOnFullPathIcon" class="iconDiv">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                        <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                            <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                            </path>
+                                                        </g>
+                                                    </svg>
+                                                </div>
+                                            </ChildContent>
                                         </SfTooltip>
                                     </td>
                                     <td><SfSwitch style="margin-top:3px" @bind-Checked="data.SearchOnFullPath" /></td>
@@ -103,20 +130,29 @@
                                 </tr>
                                 <tr>
                                     <td>
-                                        <SfTooltip Target="#searchForDirsIcon" Content="Searches in directory names for results" Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
-                                            <svg id="searchForDirsIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
-                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
-                                                    </path>
-                                                </g>
-                                            </svg>
+                                        <SfTooltip Target="#searchForDirsIcon" Position="Position.LeftCenter" WindowCollision="true" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <ContentTemplate>
+                                                <div class="tooltipContent">
+                                                    Searches in directory names for results
+                                                </div>
+                                            </ContentTemplate>
+                                            <ChildContent>
+                                                <div id="searchForDirsIcon" class="iconDiv">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                        <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                            <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                            </path>
+                                                        </g>
+                                                    </svg>
+                                                </div>
+                                            </ChildContent>
                                         </SfTooltip>
                                     </td>
                                     <td><SfSwitch style="margin-top:3px" @bind-Checked="data.SearchForDirs" /></td>
@@ -124,20 +160,29 @@
                                 </tr>
                                 <tr>
                                     <td>
-                                        <SfTooltip Target="#searchForFilesIcon" Content="Searches in files for results. This feature is required by some other features to work. Other features will enable required features automatically." Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
-                                            <svg id="searchForFilesIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
-                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
-                                                    </path>
-                                                </g>
-                                            </svg>
+                                        <SfTooltip Target="#searchForFilesIcon" Position="Position.LeftCenter" WindowCollision="true" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <ContentTemplate>
+                                                <div class="tooltipContent">
+                                                    Searches in files for results. This feature is required by some other features to work. Other features will enable required features automatically.
+                                                </div>
+                                            </ContentTemplate>
+                                            <ChildContent>
+                                                <div id="searchForFilesIcon" class="iconDiv">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                        <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                            <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                            </path>
+                                                        </g>
+                                                    </svg>
+                                                </div>
+                                            </ChildContent>
                                         </SfTooltip>
                                     </td>
                                     <td><SfSwitch style="margin-top:3px" @bind-Checked="data.SearchForFiles" /></td>
@@ -145,20 +190,29 @@
                                 </tr>
                                 <tr>
                                     <td>
-                                        <SfTooltip Target="#caseSensitiveIcon" Content="The search will ignore text case if disabled." Position="Position.RightCenter" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
-                                            <svg id="caseSensitiveIcon" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
-                                                <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
-                                                    <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
-                                                    </path>
-                                                    <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
-                                                        <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
-                                                    </path>
-                                                </g>
-                                            </svg>
+                                        <SfTooltip Target="#caseSensitiveIcon" Position="Position.LeftCenter" WindowCollision="true" IsSticky="false" ShowTipPointer="false" CloseDelay="10" OpensOn="Hover">
+                                            <ContentTemplate>
+                                                <div class="tooltipContent">
+                                                    The search will ignore text case if disabled.
+                                                </div>
+                                            </ContentTemplate>
+                                            <ChildContent>
+                                                <div id="caseSensitiveIcon" class="iconDiv">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+                                                        <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.2">
+                                                            <path stroke-dasharray="64" stroke-dashoffset="64" d="M12 3c4.97 0 9 4.03 9 9c0 4.97 -4.03 9 -9 9c-4.97 0 -9 -4.03 -9 -9c0 -4.97 4.03 -9 9 -9Z">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" dur="0.6s" values="64;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="16" stroke-dashoffset="16" d="M9 10c0 -1.66 1.34 -3 3 -3c1.66 0 3 1.34 3 3c0 0.98 -0.47 1.85 -1.2 2.4c-0.73 0.55 -1.3 0.6 -1.8 1.6">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.6s" dur="0.2s" values="16;0" />
+                                                            </path>
+                                                            <path stroke-dasharray="2" stroke-dashoffset="2" d="M12 17v0.01">
+                                                                <animate fill="freeze" attributeName="stroke-dashoffset" begin="0.8s" dur="0.2s" values="2;0" />
+                                                            </path>
+                                                        </g>
+                                                    </svg>
+                                                </div>
+                                            </ChildContent>
                                         </SfTooltip>
                                     </td>
                                     <td><SfSwitch style="margin-top:3px" @bind-Checked="data.CaseSensitive" /></td>
@@ -269,23 +323,20 @@
         <SfButton style="margin:5px" @onclick=Search>Search</SfButton>
     </div>
 
-    <SfGrid @ref="FileGrid" DataSource="@data.Paths" TValue="SingleSearchResult" AllowSorting="true" ContextMenuItems="@FileGridContextMenuItems" EnableVirtualization="true" Height="800">
-        <GridSelectionSettings Mode="SelectionMode.Row" EnableSimpleMultiRowSelection="false"></GridSelectionSettings>
-        <GridEvents ContextMenuItemClicked="OnContextMenuClick" TValue="SingleSearchResult"></GridEvents>
+    <SfGrid @ref="FileGrid" DataSource="@data.Paths" TValue="SingleSearchResult" AllowSorting="true" AllowGrouping="false" AllowPaging="true" AllowResizing="false" ContextMenuItems="@FileGridContextMenuItems">
+        <GridPageSettings PageSize="23" />
+        <GridSelectionSettings Mode="SelectionMode.Row" EnableSimpleMultiRowSelection="false" />
+        <GridEvents ContextMenuItemClicked="OnContextMenuClick" TValue="SingleSearchResult" OnActionFailure="ActionFailureHandler" />
+        <GridSortSettings>
+            <GridSortColumns>
+                <GridSortColumn Field="@nameof(SingleSearchResult.Path)" Direction="SortDirection.Ascending"></GridSortColumn>
+            </GridSortColumns>
+        </GridSortSettings>
         <GridColumns>
-            <GridColumn HeaderText="File" IsPrimaryKey="true" AllowSorting="true" AllowSearching="true" Field="@nameof(SingleSearchResult.Path)"/>
-            <GridColumn HeaderText="Size" AllowSorting="true" AutoFit="true">
+            <GridColumn HeaderText="File" AllowSearching="true" Field="@nameof(SingleSearchResult.Path)" Type="ColumnType.String" />
+            <GridColumn HeaderText="Size" AutoFit="true" Field="@nameof(SingleSearchResult.SizeInBytes)" SortComparer="new SizeComparer()" Type="ColumnType.Long">
                 <Template>
-                    @{
-                        if ((context is SingleSearchResult result))
-                        {
-                            <div>@(ToStorageUnit(result.SizeInBytes))</div>
-                        }
-                        else
-                        {
-                            <div>-</div>
-                        }
-                    }
+                    <div>@((context is SingleSearchResult result) ? ToStorageUnit(result.SizeInBytes) : "-")</div>
                 </Template>
             </GridColumn>
         </GridColumns>
@@ -294,6 +345,17 @@
     <br />
     Last search time @data.LastSearchTime min:sec:ms
 </div>
+
+<style>
+    .iconDiv {
+        margin: 2px 0
+    }
+
+
+    .tooltipContent {
+        width: 18rem
+    }
+</style>
 
 <script>
     async function copyClipboard(text) {
@@ -402,10 +464,10 @@
     protected async void ShowToast(string info, int timeout = 5000)
     {
         await this.data.ToastObj.ShowAsync(new ToastModel()
-            {
-                Content = info,
-                Timeout = timeout
-            });
+        {
+            Content = info,
+            Timeout = timeout
+        });
     }
 
     public void OnContextMenuClick(ContextMenuClickEventArgs<SingleSearchResult> args)
@@ -676,4 +738,17 @@
         ".bat",
         ".ps1",
     ];
+
+    public class SizeComparer : IComparer<object>
+    {
+        public int Compare(object? row1, object? row2)
+        {
+            return Nullable.Compare<long>(((SingleSearchResult)row1).SizeInBytes, ((SingleSearchResult)row2).SizeInBytes);
+        }
+    }
+
+    private void ActionFailureHandler(Syncfusion.Blazor.Grids.FailureEventArgs args)
+    {
+        Program.Log(args.Error.ToString());
+    }
 }
