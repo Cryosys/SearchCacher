@@ -194,7 +194,7 @@ namespace SearchCacher
                     Program.Log("Starting init for " + fileDBConfig.RootPath);
 
                     DirectoryInfo rootDirInfo = new DirectoryInfo(fileDBConfig.RootPath);
-                    string[] baseDirPaths = Directory.GetDirectories(fileDBConfig.RootPath);
+                    DirectoryInfo[] baseDirPaths = rootDirInfo.GetDirectories();
                     List<Task> tasks = new List<Task>();
                     List<Dir> baseDirs = new List<Dir>();
 
@@ -202,18 +202,21 @@ namespace SearchCacher
                     // This does not consider that the root may contain only 1 folder and then splits
                     for (int i = 0; i < baseDirPaths.Length; i++)
                     {
-                        string? dirName = new DirectoryInfo(baseDirPaths[i]).Name;
-                        if (string.IsNullOrWhiteSpace(dirName))
+                        Dir dir = new Dir(baseDirPaths[i].Name, fileDBConfig.DB);
+                        if (string.IsNullOrWhiteSpace(dir.Name))
                         {
                             // In this case we do not create a path for this directory and just mark it as finished, but never add it to the final dirs.
+                            // This should rarely ever happen if the directory was deleted in the meantime.
                             continue;
                         }
 
-                        Dir dir = new Dir(dirName, fileDBConfig.DB);
                         tasks.Add(new Task(delegate (object? val)
                         {
                             try
                             {
+                                if (val is null)
+                                    throw new ArgumentNullException(nameof(val), "Thread parameter for DB init was invalid");
+
                                 (int index, Dir tmpDir) = (Tuple<int, Dir>)val;
                                 long dirCount = 0, fileCount = 0;
                                 Recursive(fileDBConfig.Stats, baseDirPaths[index], tmpDir, globalCancellationToken, ref dirCount, ref fileCount);
@@ -229,6 +232,7 @@ namespace SearchCacher
                                 CryLib.Core.LibTools.ExceptionManager.AddException(ex);
                                 throw;
                             }
+                            // Capture the value here as the input for the thread, as the index for example will change once the thread actually started
                         }, new Tuple<int, Dir>(i, dir)));
                         baseDirs.Add(dir);
                     }
@@ -242,21 +246,18 @@ namespace SearchCacher
                         // Now we form the actual DB
                         fileDBConfig.DB.Directories = baseDirs.ToArray();
 
-                        string[] innerFiles = Directory.GetFiles(fileDBConfig.RootPath);
+                        FileInfo[] innerFiles = rootDirInfo.GetFiles();
                         fileDBConfig.DB.Files = new File[innerFiles.Length];
-                        string file;
 
                         for (int i = 0; i < innerFiles.Length; i++)
                         {
                             if (globalCancellationToken.IsCancellationRequested)
                                 return;
 
-                            file = innerFiles[i];
-                            string? fileName = Path.GetFileName(file);
-                            if (string.IsNullOrWhiteSpace(fileName))
+                            File fileEntry = new File(innerFiles[i].Name, fileDBConfig.DB, innerFiles[i].Length);
+                            if (string.IsNullOrWhiteSpace(fileEntry.Name))
                                 continue;
 
-                            File fileEntry = new File(fileName, fileDBConfig.DB);
                             fileDBConfig.DB.Files[i] = fileEntry;
                             fileDBConfig.Stats.AddFile(fileEntry);
                         }
@@ -303,52 +304,46 @@ namespace SearchCacher
                 }
             });
 
-            void Recursive(Statistics stats, string newPath, Dir parentDir, CancellationToken cancelToken, ref long dirCount, ref long fileCount)
+            void Recursive(Statistics stats, DirectoryInfo newPath, Dir parentDir, CancellationToken cancelToken, ref long dirCount, ref long fileCount)
             {
                 if (cancelToken.IsCancellationRequested || globalCancellationToken.IsCancellationRequested)
                     return;
 
-                InitDir?.Invoke(newPath);
-                string[] innerDirs = Directory.GetDirectories(newPath);
+                InitDir?.Invoke(newPath.FullName);
+                DirectoryInfo[] innerDirs = newPath.GetDirectories();
                 List<Dir> dirs = new List<Dir>();
                 parentDir.Directories = new Dir[innerDirs.Length];
-                string dir;
 
                 for (int i = 0; i < innerDirs.Length; i++)
                 {
                     // Accessing the directory may fail as we cannot guaranty that the directory will still exist once we get to cache it
                     try
                     {
-                        dir = innerDirs[i];
-                        string? dirName = new DirectoryInfo(dir).Name;
-                        if (string.IsNullOrWhiteSpace(dirName))
+                        Dir dirEntry = new Dir(innerDirs[i].Name, parentDir);
+                        if (string.IsNullOrWhiteSpace(dirEntry.Name))
                             continue;
 
-                        Dir dirEntry = new Dir(dirName, parentDir);
                         dirs.Add(dirEntry);
 
                         // We only count up in here as the dir can fail
                         dirCount++;
 
-                        Recursive(stats, dir, dirEntry, cancelToken, ref dirCount, ref fileCount);
+                        Recursive(stats, innerDirs[i], dirEntry, cancelToken, ref dirCount, ref fileCount);
                     }
                     catch { }
                 }
 
                 parentDir.Directories = dirs.ToArray();
 
-                string[] innerFiles = Directory.GetFiles(newPath);
+                FileInfo[] innerFiles = newPath.GetFiles();
                 parentDir.Files = new File[innerFiles.Length];
-                string file;
 
                 for (int i = 0; i < innerFiles.Length; i++)
                 {
-                    file = innerFiles[i];
-                    string? fileName = Path.GetFileName(file);
-                    if (string.IsNullOrWhiteSpace(fileName))
+                    File fileEntry = new File(innerFiles[i].Name, parentDir, innerFiles[i].Length);
+                    if (string.IsNullOrWhiteSpace(fileEntry.Name))
                         continue;
 
-                    File fileEntry = new File(fileName, parentDir);
                     parentDir.Files[i] = fileEntry;
                     stats.AddFile(fileEntry);
                 }
