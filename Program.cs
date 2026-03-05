@@ -101,7 +101,7 @@ namespace SearchCacher
 			}
 			else
 			{
-				_dog          = new Watchdog();
+				_dog          = new Watchdog(_serviceConfig.MaxBulkActionSize);
 				_dog.Watched += Dog_Watched;
 
 				foreach (var cfg in _serviceConfig.DBConfigs)
@@ -327,7 +327,7 @@ namespace SearchCacher
 			catch { }
 		}
 
-		private static void Dog_Watched(Watchdog.WatchedEventArgs data)
+		private static void Dog_Watched(Watchdog sender, List<Watchdog.WatchedEventArgs> events)
 		{
 			// We block this event as the watchdog is threaded with a blocking collection
 			// and we have to do the updates one after another
@@ -335,37 +335,14 @@ namespace SearchCacher
 			{
 				if (_service is null)
 				{
-					Log("Service is null, but we got watchdog events, something is wrong...");
+					Log("Service is invalid, but we got watchdog events, something is wrong...");
 					return;
 				}
 
-				switch (data.ChangeType)
-				{
-					case WatcherChangeTypes.Created:
-					{
-						_service.AddPath(data.SearchPath, data.FullPath);
-						break;
-					}
-					case WatcherChangeTypes.Deleted:
-					{
-						_service.DeletePath(data.SearchPath, data.FullPath);
-						break;
-					}
-					case WatcherChangeTypes.Renamed:
-					{
-						_service.UpdatePath(data.SearchPath, data.OldFullPath, data.FullPath);
-						break;
-					}
-					default:
-					{
-						Log($"Got changetype: {data.ChangeType}, we do nothing in this case");
-						break;
-					}
-				}
-			}
+				_service.BulkAction(events);
+            }
 			catch (Exception ex)
 			{
-				Log(ex.ToString() + Environment.NewLine + $"Oldpath: {data.OldFullPath}; Newpath: {data.FullPath}");
 				LibTools.ExceptionManager.AddException(ex);
 			}
 		}

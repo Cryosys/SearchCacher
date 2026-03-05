@@ -22,6 +22,14 @@ namespace SearchCacher
 		[JsonProperty("AutoSaveInterval")]
 		internal int AutoSaveInterval { get; set; } = 5;
 
+		/// <summary>
+		/// Gets or sets the maximum amount of actions for the watchdog to report at the same time to update the internal DB.
+		/// Setting a higher number and vastly improve the DBs throughput for locking, but also take a lot longer if
+		/// updates come in just before the timeout threshold is reached.
+		/// </summary>
+		[JsonProperty("MaxBulkActionSize")]
+		internal int MaxBulkActionSize { get; set; } = 15;
+
 		[JsonProperty("DBConfigs")]
 		internal List<DBConfig> DBConfigs { get; set; } = [];
 
@@ -31,10 +39,11 @@ namespace SearchCacher
 
 		public Config(WebConfigModel cfg)
 		{
-			AutoSaveEnabled  = cfg.AutoSaveEnabled;
-			AutoSaveInterval = cfg.AutoSaveInterval;
+			AutoSaveEnabled   = cfg.AutoSaveEnabled;
+			AutoSaveInterval  = cfg.AutoSaveInterval;
+            MaxBulkActionSize = cfg.MaxBulkActionSize;
 
-			foreach (WebDBConfigModel webDBConfig in cfg.DBConfigs)
+            foreach (WebDBConfigModel webDBConfig in cfg.DBConfigs)
 				DBConfigs.Add(new DBConfig(webDBConfig));
 		}
 	}
@@ -111,13 +120,16 @@ namespace SearchCacher
 
 		internal int AutoSaveInterval { get; set; } = 5;
 
+		internal int MaxBulkActionSize { get; set; } = 15;
+
 		internal List<WebDBConfigModel> DBConfigs { get; set; } = [];
 
 		public WebConfigModel(Config cfg)
 		{
-			AutoSaveEnabled  = cfg.AutoSaveEnabled;
-			AutoSaveInterval = cfg.AutoSaveInterval;
-			DBConfigs        = cfg.DBConfigs.Select(x => new WebDBConfigModel(x)).ToList();
+			AutoSaveEnabled   = cfg.AutoSaveEnabled;
+			AutoSaveInterval  = cfg.AutoSaveInterval;
+			MaxBulkActionSize = cfg.MaxBulkActionSize;
+            DBConfigs         = cfg.DBConfigs.Select(x => new WebDBConfigModel(x)).ToList();
 		}
 	}
 

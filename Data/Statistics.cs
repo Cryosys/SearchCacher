@@ -14,9 +14,12 @@ namespace SearchCacher
         [JsonProperty("CollectStats")]
         public bool CollectStats { get; set; } = false;
 
+        [JsonIgnore]
+        public string? StatsPath { get; private set; }
+
         public Statistics(string? statsPath, string source, bool collectStats)
         {
-            _statsPath = statsPath;
+            StatsPath = statsPath;
             Source = source;
             CollectStats = collectStats;
         }
@@ -55,19 +58,19 @@ namespace SearchCacher
 
         internal void Load()
         {
-            if (string.IsNullOrEmpty(_statsPath))
+            if (string.IsNullOrEmpty(StatsPath))
                 throw new Exception("Stat path not valid");
 
             using var scope = _statLock.EnterScope();
 
             // Thats the same as if the object was newly created
-            if (!System.IO.File.Exists(_statsPath))
+            if (!System.IO.File.Exists(StatsPath))
                 return;
 
-            string statsJson = System.IO.File.ReadAllText(_statsPath);
+            string statsJson = System.IO.File.ReadAllText(StatsPath);
             var stats = statsJson.FromCryJson<Statistics>();
             if (stats is null)
-                throw new Exception($"Save statistics in {_statsPath} are invalid");
+                throw new Exception($"Save statistics in {StatsPath} are invalid");
 
             _largestFiles = new(stats._largestFiles);
             _hashes = new(_largestFiles.Select(f => f.Hash));
@@ -77,7 +80,7 @@ namespace SearchCacher
 
         internal void Save()
         {
-            if (string.IsNullOrEmpty(_statsPath))
+            if (string.IsNullOrEmpty(StatsPath))
                 throw new Exception("Stat path not valid");
 
             using var scope = _statLock.EnterScope();
@@ -86,7 +89,7 @@ namespace SearchCacher
                 return;
 
             string stats = this.ToCryJson();
-            System.IO.File.WriteAllText(_statsPath, stats);
+            System.IO.File.WriteAllText(StatsPath, stats);
             IsDirty = false;
         }
 
@@ -210,7 +213,6 @@ namespace SearchCacher
         private AutoResetEvent _startSignal = new AutoResetEvent(false);
 
         private HashSet<long> _hashes = new();
-        private string? _statsPath;
 
         private const int MaxStats = 25;
         private BlockingCollection<QueueItem> _fileQueue = new();

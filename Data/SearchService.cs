@@ -18,6 +18,8 @@ namespace SearchCacher.Data
 
 		void DelDB(string? searchPath = null);
 
+		void BulkAction(List<Watchdog.WatchedEventArgs> events);
+
 		void AddPath(string searchPath, string path);
 
 		void UpdatePath(string searchPath, string oldPath, string newPath);
@@ -71,7 +73,9 @@ namespace SearchCacher.Data
 
 		public void DelDB(string? guid) => _searchHandler.DelDB(guid);
 
-		public void AddPath(string searchPath, string path) => _searchHandler.AddPath(searchPath, path);
+		public void BulkAction(List<Watchdog.WatchedEventArgs> events) => _searchHandler.BulkAction(events);
+
+        public void AddPath(string searchPath, string path) => _searchHandler.AddPath(searchPath, path);
 
 		public void UpdatePath(string searchPath, string oldPath, string newPath) => _searchHandler.UpdatePath(searchPath, oldPath, newPath);
 
@@ -133,6 +137,8 @@ namespace SearchCacher.Data
         public Task InitDB(string configID, CancellationToken token) => Task.CompletedTask;
 
         public void DelDB(string? searchPath) { }
+
+		public void BulkAction(List<Watchdog.WatchedEventArgs> events) { }
 
         public void AddPath(string searchPath, string path) { }
 

@@ -2,126 +2,147 @@
 
 namespace SearchCacher
 {
-	internal class Watchdog
-	{
-		internal event Action<WatchedEventArgs>? Watched;
+    internal class Watchdog
+    {
+        internal event Action<Watchdog, List<WatchedEventArgs>>? Watched;
 
-		internal List<string> CurrentWatchPaths { get; private set; } = [];
+        internal List<string> CurrentWatchPaths { get; private set; } = [];
 
-		private List<FileSystemWatcher> _watchers = [];
-		private BlockingCollection<WatchedEventArgs> _blocks = new ();
-		private Thread? _eventThread;
+        private List<FileSystemWatcher> _watchers = [];
+        private BlockingCollection<WatchedEventArgs> _blocks = new();
+        private Thread? _eventThread;
 
-		public Watchdog()
-		{
-		}
+        private int _maxBulkActionSize = 15;
 
-		internal void AddWatcher(string searchPath, string? filter = "*.*")
-		{
-			if (_watchers.Any(x => x.Path == searchPath))
-				return;
+        public Watchdog(int maxBulkActionSize)
+        {
+            _maxBulkActionSize = maxBulkActionSize;
+        }
 
-			var watcher = new FileSystemWatcher(searchPath);
-			watcher.BeginInit();
-			watcher.Filter       = filter ?? "*.*";
-			watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime | NotifyFilters.DirectoryName;
-			watcher.Created     += Watcher_Created;
-			watcher.Deleted     += Watcher_Deleted;
-			watcher.Renamed     += Watcher_Renamed;
-			watcher.Error       += Watcher_Error;
+        internal void AddWatcher(string searchPath, string? filter = "*.*")
+        {
+            if (_watchers.Any(x => x.Path == searchPath))
+                return;
 
-			// 64 KB is max described by https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher.internalbuffersize?view=net-8.0
-			// However, apparently you can set values higher than 64KB?
-			watcher.InternalBufferSize = 64 * 1024;
-			watcher.EndInit();
+            var watcher = new FileSystemWatcher(searchPath);
+            watcher.BeginInit();
+            watcher.Filter = filter ?? "*.*";
+            watcher.NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime | NotifyFilters.DirectoryName;
+            watcher.Created += Watcher_Created;
+            watcher.Deleted += Watcher_Deleted;
+            watcher.Renamed += Watcher_Renamed;
+            watcher.Error += Watcher_Error;
 
-			watcher.IncludeSubdirectories = true;
+            // 64 KB is max described by https://learn.microsoft.com/en-us/dotnet/api/system.io.filesystemwatcher.internalbuffersize?view=net-8.0
+            // However, apparently you can set values higher than 64KB?
+            watcher.InternalBufferSize = 64 * 1024;
+            watcher.EndInit();
 
-			_watchers.Add(watcher);
-			CurrentWatchPaths.Add(searchPath);
-		}
+            watcher.IncludeSubdirectories = true;
 
-		internal void RemoveWatcher(string searchPath)
-		{
-			var watcher = _watchers.Find(x => x.Path == searchPath);
-			if (watcher is null)
-				return;
+            _watchers.Add(watcher);
+            CurrentWatchPaths.Add(searchPath);
+        }
 
-			_watchers.Remove(watcher);
-			watcher.EnableRaisingEvents = false;
-			watcher.Dispose();
+        internal void RemoveWatcher(string searchPath)
+        {
+            var watcher = _watchers.Find(x => x.Path == searchPath);
+            if (watcher is null)
+                return;
 
-			CurrentWatchPaths.Remove(searchPath);
-		}
+            _watchers.Remove(watcher);
+            watcher.EnableRaisingEvents = false;
+            watcher.Dispose();
 
-		internal void Start()
-		{
-			if (_watchers is null)
-				throw new NullReferenceException(nameof(_watchers));
+            CurrentWatchPaths.Remove(searchPath);
+        }
 
-			_eventThread = new Thread(EventInvokerThread);
-			_eventThread.Start();
+        internal void Start()
+        {
+            if (_watchers is null)
+                throw new NullReferenceException(nameof(_watchers));
 
-			foreach (var watcher in _watchers)
-				watcher.EnableRaisingEvents = true;
-		}
+            _eventThread = new Thread(EventInvokerThread);
+            _eventThread.Start();
 
-		internal void Stop()
-		{
-			if (_watchers is null)
-				throw new NullReferenceException(nameof(_watchers));
+            foreach (var watcher in _watchers)
+                watcher.EnableRaisingEvents = true;
+        }
 
-			foreach (var watcher in _watchers)
-				watcher.EnableRaisingEvents = false;
+        internal void Stop()
+        {
+            if (_watchers is null)
+                throw new NullReferenceException(nameof(_watchers));
 
-			_blocks.CompleteAdding();
-			_eventThread?.Join();
-		}
+            foreach (var watcher in _watchers)
+                watcher.EnableRaisingEvents = false;
 
-		private void EventInvokerThread()
-		{
-			while (!_blocks.IsAddingCompleted || _blocks.Count > 0)
-				if (_blocks.TryTake(out var e, 1000))
-					Watched?.Invoke(e);
-		}
+            _blocks.CompleteAdding();
+            _eventThread?.Join();
+        }
 
-		private void Watcher_Created(object sender, FileSystemEventArgs e)
-		{
-			if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, ((FileSystemWatcher) sender).Path, e.FullPath)))
-				Program.Log($"Unable to add watchdog event: {e.ChangeType} -> {e.FullPath}");
-		}
+        private void EventInvokerThread()
+        {
+            // Check that no more work is left to do, otherwise complete it first before stopping the thread
+            while (!_blocks.IsAddingCompleted || _blocks.Count > 0)
+            {
+                List<WatchedEventArgs> events = [];
 
-		private void Watcher_Deleted(object sender, FileSystemEventArgs e)
-		{
-			if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, ((FileSystemWatcher) sender).Path, e.FullPath)))
-				Program.Log($"Unable to add watchdog event: {e.ChangeType} -> {e.FullPath}");
-		}
+                // Get UP TO x events and send them to the DB to process.
+                // This improves throughput due to the locking mechanism of the master lock,
+                // less locking in total.
+                do
+                {
+                    if (!_blocks.TryTake(out var e, 1000))
+                        break;
 
-		private void Watcher_Renamed(object sender, RenamedEventArgs e)
-		{
-			if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, ((FileSystemWatcher) sender).Path, e.FullPath, e.OldFullPath)))
-				Program.Log($"Unable to add watchdog event: {e.ChangeType} -> {e.FullPath};{e.OldFullPath}");
-		}
+                    events.Add(e);
+                }
+                while (events.Count < _maxBulkActionSize);
 
-		private static void Watcher_Error(object sender, System.IO.ErrorEventArgs e) => CryLib.Core.LibTools.ExceptionManager.AddException(e.GetException());
+                // Only invoke if we actualy collected events
+                if (events.Count > 0)
+                    Watched?.Invoke(this, events);
+            }
+        }
 
-		internal struct WatchedEventArgs
-		{
-			internal WatcherChangeTypes ChangeType { get; }
+        private void Watcher_Created(object sender, FileSystemEventArgs e)
+        {
+            if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, ((FileSystemWatcher)sender).Path, e.FullPath)))
+                Program.Log($"Unable to add watchdog event: {e.ChangeType} -> {e.FullPath}");
+        }
 
-			internal string FullPath { get; }
+        private void Watcher_Deleted(object sender, FileSystemEventArgs e)
+        {
+            if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, ((FileSystemWatcher)sender).Path, e.FullPath)))
+                Program.Log($"Unable to add watchdog event: {e.ChangeType} -> {e.FullPath}");
+        }
 
-			internal string OldFullPath { get; }
+        private void Watcher_Renamed(object sender, RenamedEventArgs e)
+        {
+            if (!_blocks.TryAdd(new WatchedEventArgs(e.ChangeType, ((FileSystemWatcher)sender).Path, e.FullPath, e.OldFullPath)))
+                Program.Log($"Unable to add watchdog event: {e.ChangeType} -> {e.FullPath};{e.OldFullPath}");
+        }
 
-			internal string SearchPath { get; }
+        private static void Watcher_Error(object sender, System.IO.ErrorEventArgs e) => CryLib.Core.LibTools.ExceptionManager.AddException(e.GetException());
 
-			public WatchedEventArgs(WatcherChangeTypes changeType, string searchPath, string fullPath, string oldFullPath = "")
-			{
-				ChangeType  = changeType;
-				SearchPath  = searchPath;
-				FullPath    = fullPath;
-				OldFullPath = oldFullPath;
-			}
-		}
-	}
+        internal struct WatchedEventArgs
+        {
+            internal WatcherChangeTypes ChangeType { get; }
+
+            internal string FullPath { get; }
+
+            internal string OldFullPath { get; }
+
+            internal string SearchPath { get; }
+
+            public WatchedEventArgs(WatcherChangeTypes changeType, string searchPath, string fullPath, string oldFullPath = "")
+            {
+                ChangeType = changeType;
+                SearchPath = searchPath;
+                FullPath = fullPath;
+                OldFullPath = oldFullPath;
+            }
+        }
+    }
 }

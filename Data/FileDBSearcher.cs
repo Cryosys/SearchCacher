@@ -5,6 +5,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using static SearchCacher.ISearcher;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace SearchCacher
 {
@@ -23,6 +24,10 @@ namespace SearchCacher
         /// <returns>   The init Task. </returns>
         /// <seealso cref="FileDBSearcher.InitDB(List{DBConfig}, CancellationToken)"/>
         public Task InitDB(string configID, CancellationToken globalCancellationToken, bool parentHasMasterLock);
+
+        /// <summary>   Performs multiple actions one after another on the DB without requesting a new lock, making updates much faster. </summary>
+        /// <param name="events"> Events to process. </param>
+        public void BulkAction(List<Watchdog.WatchedEventArgs> events);
 
         /// <summary>   Adds a path. </summary>
         /// <param name="path"> Full path to add. </param>
@@ -87,7 +92,7 @@ namespace SearchCacher
         }
     }
 
-    public struct SingleSearchResult(string path, long sizeInBytes)
+    public class SingleSearchResult(string path, long sizeInBytes)
     {
         public string Path { get; } = path;
 
@@ -124,7 +129,7 @@ namespace SearchCacher
                     Program.Log("One of the DB config paths is invalid");
                     continue;
                 }
-                
+
                 Program.Log("Importing Database " + dbConfig.FileDBPath);
 
                 if (string.IsNullOrWhiteSpace(dbConfig.StatisticsPath))
@@ -188,6 +193,7 @@ namespace SearchCacher
 
                     Program.Log("Starting init for " + fileDBConfig.RootPath);
 
+                    DirectoryInfo rootDirInfo = new DirectoryInfo(fileDBConfig.RootPath);
                     string[] baseDirPaths = Directory.GetDirectories(fileDBConfig.RootPath);
                     List<Task> tasks = new List<Task>();
                     List<Dir> baseDirs = new List<Dir>();
@@ -415,8 +421,11 @@ namespace SearchCacher
             });
         }
 
-        public void AddPath(string rootPath, string path)
+        public void BulkAction(List<Watchdog.WatchedEventArgs> events)
         {
+            if (events.Count == 0)
+                return;
+
             CancellationTokenSource cancelSource = new CancellationTokenSource();
             bool acquiredLock = false;
             try
@@ -424,67 +433,32 @@ namespace SearchCacher
                 if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
                     throw new Exception("Could not acquire master lock on file DB");
 
-                if (_configs is null || _configs.Length == 0)
-                    return;
-
-                var config = _configs.FirstOrDefault(c => c.RootPath == rootPath);
-
-                // Either we did not want any events for this path or the DB was removed in the meantime
-                if (config is null)
-                    return;
-
-                string subPath = path.Replace(config.RootPath, "");
-                string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
-
-                bool isFile = false;
-
-                try
+                foreach (var e in events)
                 {
-                    isFile = !System.IO.File.GetAttributes(path).HasFlag(FileAttributes.Directory);
-                }
-                catch (Exception ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException || ex is IOException)
-                {
-                    // This may happen if the file or directory does not exist anymore
-                    // At this point we just return and assume everything is fine
-                    return;
-                }
-
-                Dir curDir = config.DB;
-
-                // Always size - 1 as we create the file and folder entry at the end
-                // Our first step is to find the directory mapping where to add either the directory or file
-                int searchDepth = pathSplits.Length - 1;
-
-                Dir? fittingDir;
-                for (int i = 0; i < searchDepth; i++)
-                {
-                    if ((fittingDir = curDir.Directories.FirstOrDefault(dir => dir.Name == pathSplits[i])) != null)
+                    switch (e.ChangeType)
                     {
-                        curDir = fittingDir;
-                        continue;
-                    }
-                    else
-                    {
-                        for (; i < searchDepth; i++)
-                        {
-                            fittingDir = new Dir(pathSplits[i], curDir);
-                            curDir.Directories = curDir.Directories.Append(fittingDir).ToArray();
-                            curDir = fittingDir;
-                        }
+                        case WatcherChangeTypes.Created:
+                            {
+                                _AddPath(e.SearchPath, e.FullPath, true);
+                                break;
+                            }
+                        case WatcherChangeTypes.Deleted:
+                            {
+                                _DeletePath(e.SearchPath, e.FullPath, true);
+                                break;
+                            }
+                        case WatcherChangeTypes.Renamed:
+                            {
+                                _UpdatePath(e.SearchPath, e.OldFullPath, e.FullPath, true);
+                                break;
+                            }
+                        default:
+                            {
+                                Program.Log($"Got changetype: {e.ChangeType}, we do nothing in this case");
+                                break;
+                            }
                     }
                 }
-
-                if (isFile)
-                {
-                    var file = new File(pathSplits.Last(), curDir);
-                    curDir.Files = curDir.Files.Append(file).ToArray();
-
-                    config.Stats?.AddFile(file);
-                }
-                else
-                    curDir.Directories = curDir.Directories.Append(new Dir(pathSplits.Last(), curDir)).ToArray();
-
-                config.IsDirty = true;
             }
             finally
             {
@@ -500,206 +474,15 @@ namespace SearchCacher
                 cancelSource.Dispose();
 
                 // Event though this looks weird in the log, we log the add after releasing the log so that another thread can acquire it faster
-                Program.Log("Added " + path);
+                Program.Log("Bulk action update complete");
             }
         }
 
-        public void UpdatePath(string rootPath, string oldPath, string newPath)
-        {
-            CancellationTokenSource cancelSource = new CancellationTokenSource();
-            bool acquiredLock = false;
-            try
-            {
-                // Has to be the new path as the old folder or file does not exist anymore at this point
-                bool isFile = false;
+        public void AddPath(string rootPath, string path) => _AddPath(rootPath, path, false);
 
-                try
-                {
-                    isFile = !System.IO.File.GetAttributes(newPath).HasFlag(FileAttributes.Directory);
-                }
-                catch (Exception ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException || ex is IOException)
-                {
-                    // This may happen if the file or directory does not exist anymore
-                    // At this point we just return and assume everything is fine
-                    return;
-                }
+        public void UpdatePath(string rootPath, string oldPath, string newPath) => _UpdatePath(rootPath, oldPath, newPath, false);
 
-                // First we need to check if the old path and new path match as a file.
-                // It can happen that the old path provided by the watchdog is invalid as the file was renamed on creation.
-                // In this case we do not need to do anything as a event would preceed this one
-                // We can simply check it by subtracting the new paths folder path and the old paths folder path, if the resulting path is empty we know that it was a faulty event.
-                {
-                    string newDirPath = Path.GetDirectoryName(newPath) ?? string.Empty;
-                    if (!newDirPath.EndsWith("\\"))
-                        newDirPath += "\\";
-
-                    if (string.IsNullOrWhiteSpace(oldPath.Replace(newDirPath, "")))
-                        return;
-                }
-
-                // We can do everything else above as it does not concern the DB
-                if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
-                    throw new Exception("Could not acquire master lock on file DB");
-
-                if (_configs is null || _configs.Length == 0)
-                    return;
-
-                var config = _configs.FirstOrDefault(c => c.RootPath == rootPath);
-                if (config is null)
-                    return;
-
-                string subPath = oldPath.Replace(config.RootPath, "");
-                string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
-                string[] newPathSplits = newPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
-
-                Dir curDir = config.DB;
-
-                // Always size - 1 as we create the file and folder entry at the end
-                // Our first step is to find the directory mapping where to add either the directory or file
-                int searchDepth = pathSplits.Length - 1;
-
-                Dir? fittingDir;
-                for (int i = 0; i < searchDepth; i++)
-                {
-                    if ((fittingDir = curDir.Directories.FirstOrDefault(dir => dir.Name == pathSplits[i])) != null)
-                    {
-                        curDir = fittingDir;
-                        continue;
-                    }
-                    else
-                    {
-                        for (; i < searchDepth; i++)
-                        {
-                            fittingDir = new Dir(pathSplits[i], curDir);
-                            curDir.Directories = curDir.Directories.Append(fittingDir).ToArray();
-                            curDir = fittingDir;
-                        }
-                    }
-                }
-
-                string lastSplit = newPathSplits.LastOrDefault() ?? newPath;
-
-                if (isFile)
-                {
-                    File? foundFile = curDir.Files.FirstOrDefault(f => f.Name == pathSplits.Last());
-                    if (foundFile == null)
-                        curDir.Files = curDir.Files.Append(new File(newPathSplits.Last(), curDir)).ToArray();
-                    else
-                        foundFile.Name = newPathSplits.Last();
-                }
-                else
-                {
-                    Dir? foundDir = curDir.Directories.FirstOrDefault(d => d.Name == pathSplits.Last());
-                    if (foundDir == null)
-                        curDir.Directories = curDir.Directories.Append(new Dir(newPathSplits.Last(), curDir)).ToArray();
-                    else
-                        foundDir.Name = newPathSplits.Last();
-                }
-
-                config.IsDirty = true;
-            }
-            finally
-            {
-                try
-                {
-                    // We can only release the lock if we also took it
-                    if (acquiredLock)
-                        if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
-                            throw new Exception("Could not release master lock on file DB");
-                }
-                catch { }
-
-                cancelSource.Dispose();
-
-                // Event though this looks weird in the log, we log the update after releasing the log so that another thread can acquire it faster
-                Program.Log("Update from " + oldPath + " to " + newPath);
-            }
-        }
-
-        public void DeletePath(string rootPath, string path)
-        {
-            CancellationTokenSource cancelSource = new CancellationTokenSource();
-            bool acquiredLock = false;
-            try
-            {
-                if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
-                    throw new Exception("Could not acquire master lock on file DB");
-
-                if (_configs is null || _configs.Length == 0)
-                    return;
-
-                var config = _configs.FirstOrDefault(c => c.RootPath == rootPath);
-                if (config is null)
-                    return;
-
-                string subPath = path.Replace(config.RootPath, "");
-                string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
-
-                Dir curDir = config.DB;
-
-                // Always size - 1 as we create the file and folder entry at the end
-                // Our first step is to find the directory mapping where to add either the directory or file
-                int searchDepth = pathSplits.Length - 1;
-
-                Dir? fittingDir;
-                for (int i = 0; i < searchDepth; i++)
-                {
-                    if ((fittingDir = curDir.Directories.FirstOrDefault(dir => dir.Name == pathSplits[i])) != null)
-                    {
-                        curDir = fittingDir;
-                        continue;
-                    }
-                    else
-                        // If it does not exist we do not need to remove it
-                        return;
-                }
-
-                int lastCount = curDir.Files.Length;
-
-                List<File> files = new List<File>();
-
-                foreach (File file in curDir.Files)
-                {
-                    if (file.Name != pathSplits.Last())
-                        files.Add(file);
-                    else
-                        config.Stats?.RemoveFile(file);
-                }
-
-                curDir.Files = files.ToArray();
-
-                // Just a simple performance trick to do as little work as possible
-                if (lastCount != files.Count)
-                    return;
-
-                List<Dir> dirs = new List<Dir>();
-
-                foreach (Dir dir in curDir.Directories)
-                {
-                    if (dir.Name != pathSplits.Last())
-                        dirs.Add(dir);
-                }
-
-                curDir.Directories = dirs.ToArray();
-                config.IsDirty = true;
-            }
-            finally
-            {
-                try
-                {
-                    // We can only release the lock if we also took it
-                    if (acquiredLock)
-                        if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
-                            throw new Exception("Could not release master lock on file DB");
-                }
-                catch { }
-
-                cancelSource.Dispose();
-
-                // Event though this looks weird in the log, we log the delete after releasing the log so that another thread can acquire it faster
-                Program.Log("Removed " + path);
-            }
-        }
+        public void DeletePath(string rootPath, string path) => _DeletePath(rootPath, path, false);
 
         public IEnumerable<ISearcher.SearchResult> Search(SearchSettings searchSettings)
         {
@@ -873,17 +656,17 @@ namespace SearchCacher
 
                     if (searchSettings.SearchOnlyFileExt && searchSettings.FileExtensions.Any(ext => ext == file.Extension))
                     {
-                        foundFiles.Add(new (file.FullPath, file.Size));
+                        foundFiles.Add(new(file.FullPath, file.Size));
                         continue;
                     }
 
                     if (searchSettings.SearchOnFullPath)
                     {
                         if (Regex.IsMatch(file.FullPath, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-                            foundFiles.Add(new (file.FullPath, file.Size));
+                            foundFiles.Add(new(file.FullPath, file.Size));
                     }
                     else if (Regex.IsMatch(file.Name, searchSettings.Pattern, searchSettings.CaseSensitive ? RegexOptions.None : RegexOptions.IgnoreCase))
-                        foundFiles.Add(new (file.FullPath, file.Size));
+                        foundFiles.Add(new(file.FullPath, file.Size));
                     else if (searchSettings.SearchInFiles && searchSettings.FileExtensions.Any(ext => ext == file.Extension))
                     {
                         StringComparison rule = searchSettings.CaseSensitive ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase;
@@ -893,7 +676,7 @@ namespace SearchCacher
                         while ((line = reader.ReadLine()) != null)
                             if (line.Contains(searchSettings.Pattern, rule))
                             {
-                                foundFiles.Add(new (file.FullPath, file.Size));
+                                foundFiles.Add(new(file.FullPath, file.Size));
                                 break;
                             }
                     }
@@ -913,7 +696,7 @@ namespace SearchCacher
 
         public void Shutdown()
         {
-            foreach(var config in _configs)
+            foreach (var config in _configs)
                 config.Stats?.Stop();
 
             StopAutoSave();
@@ -1039,7 +822,7 @@ namespace SearchCacher
 
                 lock (config.SaveLockObj)
                 {
-                    Program.Log("Saving Statistics for -> " + config.RootPath);
+                    Program.Log($"Saving Statistics for -> {config.RootPath} to {config.Stats.StatsPath}");
                     config.Stats.Save();
 
                     if (!config.IsDirty && !force)
@@ -1111,7 +894,7 @@ namespace SearchCacher
                 }
                 Program.Log("Database relations restored");
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Program.Log("Failed to restore database relations. " + ex.Message);
                 throw;
@@ -1139,6 +922,295 @@ namespace SearchCacher
                     file.Parent = parentDir;
 
                 fileCount += parentDir.Files.Length;
+            }
+        }
+
+        private void _AddPath(string rootPath, string path, bool parentHasLock)
+        {
+            CancellationTokenSource cancelSource = new CancellationTokenSource();
+            bool acquiredLock = false;
+            try
+            {
+                if (!parentHasLock)
+                    if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
+                        throw new Exception("Could not acquire master lock on file DB");
+
+                if (_configs is null || _configs.Length == 0)
+                    return;
+
+                var config = _configs.FirstOrDefault(c => c.RootPath == rootPath);
+
+                // Either we did not want any events for this path or the DB was removed in the meantime
+                if (config is null)
+                    return;
+
+                string subPath = path.Replace(config.RootPath, "");
+                string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
+
+                bool isFile = false;
+
+                try
+                {
+                    isFile = !System.IO.File.GetAttributes(path).HasFlag(FileAttributes.Directory);
+                }
+                catch (Exception ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException || ex is IOException)
+                {
+                    // This may happen if the file or directory does not exist anymore
+                    // At this point we just return and assume everything is fine
+                    return;
+                }
+
+                Dir curDir = config.DB;
+
+                // Always size - 1 as we create the file and folder entry at the end
+                // Our first step is to find the directory mapping where to add either the directory or file
+                int searchDepth = pathSplits.Length - 1;
+
+                Dir? fittingDir;
+                for (int i = 0; i < searchDepth; i++)
+                {
+                    if ((fittingDir = curDir.Directories.FirstOrDefault(dir => dir.Name == pathSplits[i])) != null)
+                    {
+                        curDir = fittingDir;
+                        continue;
+                    }
+                    else
+                    {
+                        for (; i < searchDepth; i++)
+                        {
+                            fittingDir = new Dir(pathSplits[i], curDir);
+                            curDir.Directories = curDir.Directories.Append(fittingDir).ToArray();
+                            curDir = fittingDir;
+                        }
+                    }
+                }
+
+                if (isFile)
+                {
+                    var file = new File(pathSplits.Last(), curDir);
+                    curDir.Files = curDir.Files.Append(file).ToArray();
+
+                    config.Stats?.AddFile(file);
+                }
+                else
+                    curDir.Directories = curDir.Directories.Append(new Dir(pathSplits.Last(), curDir)).ToArray();
+
+                config.IsDirty = true;
+            }
+            finally
+            {
+                try
+                {
+                    // We can only release the lock if we also took it
+                    if (acquiredLock)
+                        if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+                            throw new Exception("Could not release master lock on file DB");
+                }
+                catch { }
+
+                cancelSource.Dispose();
+
+                // Event though this looks weird in the log, we log the add after releasing the log so that another thread can acquire it faster
+                Program.Log("Added " + path);
+            }
+        }
+
+        private void _UpdatePath(string rootPath, string oldPath, string newPath, bool parentHasLock)
+        {
+            CancellationTokenSource cancelSource = new CancellationTokenSource();
+            bool acquiredLock = false;
+            try
+            {
+                // Has to be the new path as the old folder or file does not exist anymore at this point
+                bool isFile = false;
+
+                try
+                {
+                    isFile = !System.IO.File.GetAttributes(newPath).HasFlag(FileAttributes.Directory);
+                }
+                catch (Exception ex) when (ex is FileNotFoundException || ex is DirectoryNotFoundException || ex is IOException)
+                {
+                    // This may happen if the file or directory does not exist anymore
+                    // At this point we just return and assume everything is fine
+                    return;
+                }
+
+                // First we need to check if the old path and new path match as a file.
+                // It can happen that the old path provided by the watchdog is invalid as the file was renamed on creation.
+                // In this case we do not need to do anything as a event would preceed this one
+                // We can simply check it by subtracting the new paths folder path and the old paths folder path, if the resulting path is empty we know that it was a faulty event.
+                {
+                    string newDirPath = Path.GetDirectoryName(newPath) ?? string.Empty;
+                    if (!newDirPath.EndsWith("\\"))
+                        newDirPath += "\\";
+
+                    if (string.IsNullOrWhiteSpace(oldPath.Replace(newDirPath, "")))
+                        return;
+                }
+
+                // We can do everything else above as it does not concern the DB
+                if (!parentHasLock)
+                    if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
+                        throw new Exception("Could not acquire master lock on file DB");
+
+                if (_configs is null || _configs.Length == 0)
+                    return;
+
+                var config = _configs.FirstOrDefault(c => c.RootPath == rootPath);
+                if (config is null)
+                    return;
+
+                string subPath = oldPath.Replace(config.RootPath, "");
+                string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
+                string[] newPathSplits = newPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
+
+                Dir curDir = config.DB;
+
+                // Always size - 1 as we create the file and folder entry at the end
+                // Our first step is to find the directory mapping where to add either the directory or file
+                int searchDepth = pathSplits.Length - 1;
+
+                Dir? fittingDir;
+                for (int i = 0; i < searchDepth; i++)
+                {
+                    if ((fittingDir = curDir.Directories.FirstOrDefault(dir => dir.Name == pathSplits[i])) != null)
+                    {
+                        curDir = fittingDir;
+                        continue;
+                    }
+                    else
+                    {
+                        for (; i < searchDepth; i++)
+                        {
+                            fittingDir = new Dir(pathSplits[i], curDir);
+                            curDir.Directories = curDir.Directories.Append(fittingDir).ToArray();
+                            curDir = fittingDir;
+                        }
+                    }
+                }
+
+                string lastSplit = newPathSplits.LastOrDefault() ?? newPath;
+
+                if (isFile)
+                {
+                    File? foundFile = curDir.Files.FirstOrDefault(f => f.Name == pathSplits.Last());
+                    if (foundFile == null)
+                        curDir.Files = curDir.Files.Append(new File(newPathSplits.Last(), curDir)).ToArray();
+                    else
+                        foundFile.Name = newPathSplits.Last();
+                }
+                else
+                {
+                    Dir? foundDir = curDir.Directories.FirstOrDefault(d => d.Name == pathSplits.Last());
+                    if (foundDir == null)
+                        curDir.Directories = curDir.Directories.Append(new Dir(newPathSplits.Last(), curDir)).ToArray();
+                    else
+                        foundDir.Name = newPathSplits.Last();
+                }
+
+                config.IsDirty = true;
+            }
+            finally
+            {
+                try
+                {
+                    // We can only release the lock if we also took it
+                    if (acquiredLock)
+                        if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+                            throw new Exception("Could not release master lock on file DB");
+                }
+                catch { }
+
+                cancelSource.Dispose();
+
+                // Event though this looks weird in the log, we log the update after releasing the log so that another thread can acquire it faster
+                Program.Log("Update from " + oldPath + " to " + newPath);
+            }
+        }
+
+        private void _DeletePath(string rootPath, string path, bool parentHasLock)
+        {
+            CancellationTokenSource cancelSource = new CancellationTokenSource();
+            bool acquiredLock = false;
+            try
+            {
+                if (!parentHasLock)
+                    if (!(acquiredLock = _dbLock.RequestMasterLockAsync(cancelSource.Token).Result))
+                        throw new Exception("Could not acquire master lock on file DB");
+
+                if (_configs is null || _configs.Length == 0)
+                    return;
+
+                var config = _configs.FirstOrDefault(c => c.RootPath == rootPath);
+                if (config is null)
+                    return;
+
+                string subPath = path.Replace(config.RootPath, "");
+                string[] pathSplits = subPath.Split("\\", StringSplitOptions.RemoveEmptyEntries);
+
+                Dir curDir = config.DB;
+
+                // Always size - 1 as we create the file and folder entry at the end
+                // Our first step is to find the directory mapping where to add either the directory or file
+                int searchDepth = pathSplits.Length - 1;
+
+                Dir? fittingDir;
+                for (int i = 0; i < searchDepth; i++)
+                {
+                    if ((fittingDir = curDir.Directories.FirstOrDefault(dir => dir.Name == pathSplits[i])) != null)
+                    {
+                        curDir = fittingDir;
+                        continue;
+                    }
+                    else
+                        // If it does not exist we do not need to remove it
+                        return;
+                }
+
+                int lastCount = curDir.Files.Length;
+
+                List<File> files = new List<File>();
+
+                foreach (File file in curDir.Files)
+                {
+                    if (file.Name != pathSplits.Last())
+                        files.Add(file);
+                    else
+                        config.Stats?.RemoveFile(file);
+                }
+
+                curDir.Files = files.ToArray();
+
+                // Just a simple performance trick to do as little work as possible
+                if (lastCount != files.Count)
+                    return;
+
+                List<Dir> dirs = new List<Dir>();
+
+                foreach (Dir dir in curDir.Directories)
+                {
+                    if (dir.Name != pathSplits.Last())
+                        dirs.Add(dir);
+                }
+
+                curDir.Directories = dirs.ToArray();
+                config.IsDirty = true;
+            }
+            finally
+            {
+                try
+                {
+                    // We can only release the lock if we also took it
+                    if (acquiredLock)
+                        if (!_dbLock.ReleaseMasterLockAsync(cancelSource.Token).Result)
+                            throw new Exception("Could not release master lock on file DB");
+                }
+                catch { }
+
+                cancelSource.Dispose();
+
+                // Event though this looks weird in the log, we log the delete after releasing the log so that another thread can acquire it faster
+                Program.Log("Removed " + path);
             }
         }
 
@@ -1309,7 +1381,7 @@ namespace SearchCacher
             Name = name;
             Parent = parent;
             Extension = Path.GetExtension(name);
-            
+
             var file = new FileInfo(FullPath);
             Size = file.Length;
 

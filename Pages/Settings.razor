@@ -99,7 +99,16 @@
             <tr>
                 <td>Autosave interval in minutes:</td>
                 <td>
-                    <SfNumericTextBox @bind-Value="Cfg.AutoSaveInterval" Step="1" style="min-width:400px" />
+                    <SfNumericTextBox @bind-Value="Cfg.AutoSaveInterval" TValue="int" Step="1" style="min-width:400px" />
+                </td>
+            </tr>
+            <tr>
+                <td>Watchdog bulk update size:</td>
+                <td>
+                    <SfNumericTextBox @bind-Value="Cfg.MaxBulkActionSize" TValue="int" Step="1" style="min-width:400px" />
+                </td>
+                <td>
+                    The bulk update size determines how many updates (added, deleted or moved directories and files) should be processed at the same time.
                 </td>
             </tr>
         </tbody>
@@ -229,19 +238,18 @@
             SettingsConfigUIModels.Add(dbConfig.ID, new SettingsConfigUIModel(dbConfig.ID));
 
         // This causes issues with the JS backend because the updates seem to be too fast?
-        return;
-        SearchCacher.Data.SearchService.SubscribeToInitDir(async (dir) =>
-        {
-            await InvokeAsync(() =>
-            {
-                // This is purely to reduce exceptions
-                lock (pathLock)
-                {
-                    currentDir = dir;
-                    StateHasChanged();
-                }
-            });
-        });
+        // SearchCacher.Data.SearchService.SubscribeToInitDir(async (dir) =>
+        // {
+        //     await InvokeAsync(() =>
+        //     {
+        //         // This is purely to reduce exceptions
+        //         lock (pathLock)
+        //         {
+        //             currentDir = dir;
+        //             StateHasChanged();
+        //         }
+        //     });
+        // });
     }
 
     protected void AddConfig()
