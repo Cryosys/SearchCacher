@@ -306,7 +306,7 @@
 
     <div style="display:flex;flex-direction:row;text-align:center;align-items:center">
         <span style="margin-left:5px;margin-right:5px">Pattern:</span>
-        <SfTextBox Multiline="false" Placeholder="*nua*" @bind-Value="data.Pattern" style="min-width:400px" @onkeyup="@PatternTextBoxKeyUp" />
+        <SfTextBox CssClass="inputClass" Multiline="false" Placeholder="*nua*" @bind-Value="data.Pattern" style="min-width:400px" @onkeyup="@PatternTextBoxKeyUp" />
         <div style="position:relative;width:50px;margin:5px;display:@data.SpinnerDisplayMode;visibility:@data.SpinnerVisibility">
             <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24">
                 <g fill="none" stroke="#64a0e8" stroke-linecap="round" stroke-linejoin="round" stroke-width="3">
@@ -323,8 +323,7 @@
         <SfButton style="margin:5px" @onclick=Search>Search</SfButton>
     </div>
 
-    <SfGrid @ref="FileGrid" DataSource="@data.Paths" TValue="SingleSearchResult" AllowSorting="true" AllowGrouping="false" AllowPaging="true" AllowResizing="false" ContextMenuItems="@FileGridContextMenuItems">
-        <GridPageSettings PageSize="23" />
+    <SfGrid @ref="FileGrid" DataSource="@data.Paths" TValue="SingleSearchResult" AllowSorting="false" AllowPaging="false" EnableVirtualization="true" Height="800" ContextMenuItems="@FileGridContextMenuItems">
         <GridSelectionSettings Mode="SelectionMode.Row" EnableSimpleMultiRowSelection="false" />
         <GridEvents ContextMenuItemClicked="OnContextMenuClick" TValue="SingleSearchResult" OnActionFailure="ActionFailureHandler" />
         <GridSortSettings>
@@ -333,8 +332,25 @@
             </GridSortColumns>
         </GridSortSettings>
         <GridColumns>
-            <GridColumn HeaderText="File" AllowSearching="true" Field="@nameof(SingleSearchResult.Path)" Type="ColumnType.String" />
-            <GridColumn HeaderText="Size" AutoFit="true" Field="@nameof(SingleSearchResult.SizeInBytes)" SortComparer="new SizeComparer()" Type="ColumnType.Long">
+            <GridColumn AllowSearching="true" Field="@nameof(SingleSearchResult.Path)" Type="ColumnType.String">
+                <HeaderTemplate>
+                    <div style="display:flex;flex-direction:row;align-items:center;align-content:flex-start">
+                        <div style="margin-right:1rem">File</div>
+                        <SfButton CssClass="sortButton" OnClick="@(() => SortPath(CicleState(PathSortState)))">
+                            @GetSortText(PathSortState)
+                        </SfButton>
+                    </div>
+                </HeaderTemplate>
+            </GridColumn>
+            <GridColumn MinWidth="80" AutoFit="true" Field="@nameof(SingleSearchResult.SizeInBytes)" SortComparer="new SizeComparer()" Type="ColumnType.Long">
+                <HeaderTemplate>
+                    <div style="display:flex;flex-direction:row;align-items:center;align-content:flex-start">
+                        <div style="margin-right:1rem">Size</div>
+                        <SfButton CssClass="sortButton" OnClick="@(() => SortSize(CicleState(SizeSortState)))">
+                            @GetSortText(SizeSortState)
+                        </SfButton>
+                    </div>
+                </HeaderTemplate>
                 <Template>
                     <div>@((context is SingleSearchResult result) ? ToStorageUnit(result.SizeInBytes) : "-")</div>
                 </Template>
@@ -342,18 +358,39 @@
         </GridColumns>
     </SfGrid>
 
-    <br />
-    Last search time @data.LastSearchTime min:sec:ms
+    <div style="padding:0.3rem 0.5rem;background-color:#1B2430;font-size:0.9rem">
+        Last search took @(data.LastSearchTime)s and found @(data.Paths.Count.ToString("n0", defaultCulture)) results
+    </div>
 </div>
 
 <style>
     .iconDiv {
-        margin: 2px 0
+        margin: 2px 0;
     }
 
+    .inputClass {
+        font-family: Inter;
+    }
 
     .tooltipContent {
-        width: 18rem
+        width: 18rem;
+    }
+
+    .sortButton {
+        border: none;
+        background-color: transparent;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background-color: #1B2430;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+            background-color: #22d3ee;
+    }
+
+    ::-webkit-scrollbar {
+        background-color: #374151;
     }
 </style>
 
@@ -370,11 +407,14 @@
 </script>
 
 @code {
+    private System.Globalization.CultureInfo defaultCulture = new System.Globalization.CultureInfo("en-US");
     FormData data = new FormData();
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        defaultCulture.NumberFormat.NumberDecimalSeparator = ".";
+        defaultCulture.NumberFormat.NumberGroupSeparator = ".";
         data.Cfg = searchService.GetWebConfigModel();
     }
 
@@ -439,7 +479,7 @@
 
         IEnumerable<ISearcher.SearchResult> results = data.SearchTask.Result;
 
-        data.LastSearchTime = (DateTime.Now - preSearch).ToString(@"mm\:ss\:ffff", new System.Globalization.CultureInfo("en-US"));
+        data.LastSearchTime = (DateTime.Now - preSearch).TotalSeconds.ToString("F2", defaultCulture);
         data.IsSpinnerVisible = false;
         SetSpinnerVisibility(false);
         data.SearchTask = null;
@@ -456,6 +496,7 @@
         }
 
         data.Paths = combinedPaths;
+        SortPath(SizeSortState);
 
         await Task.Delay(100);
         ShowToast("Finished search");
@@ -750,5 +791,56 @@
     private void ActionFailureHandler(Syncfusion.Blazor.Grids.FailureEventArgs args)
     {
         Program.Log(args.Error.ToString());
+    }
+
+    private SortingState CicleState(SortingState state)
+    {
+        int newState = ((int)state) + 1;
+        if (newState >= Enum.GetValues(typeof(SortingState)).Length - 1)
+            newState = 0;
+
+        return (SortingState)newState;
+    }
+
+    private void SortPath(SortingState state)
+    {
+        if (state == SortingState.Ascending)
+            data.Paths = data.Paths.OrderBy(p => p.Path).ToList();
+        else if (state == SortingState.Descending)
+            data.Paths = data.Paths.OrderByDescending(p => p.Path).ToList();
+
+        PathSortState = state;
+        SizeSortState = SortingState.None;
+    }
+
+    private void SortSize(SortingState state)
+    {
+        if (state == SortingState.Ascending)
+            data.Paths = data.Paths.OrderBy(p => p.SizeInBytes).ToList();
+        else if (state == SortingState.Descending)
+            data.Paths = data.Paths.OrderByDescending(p => p.SizeInBytes).ToList();
+
+        SizeSortState = state;
+        PathSortState = SortingState.None;
+    }
+
+    private string GetSortText(SortingState state)
+    {
+        if (state == SortingState.Ascending)
+            return "↑";
+        else if (state == SortingState.Descending)
+            return "↓";
+        else
+            return "-";
+    }
+
+    private SortingState PathSortState { get; set; } = SortingState.None;
+    private SortingState SizeSortState { get; set; }= SortingState.None;
+
+    private enum SortingState
+    {
+        None = -1,
+        Descending = 0,
+        Ascending = 1,
     }
 }
