@@ -78,7 +78,7 @@ namespace SearchCacher
             IsDirty = false;
         }
 
-        internal void Save()
+        internal bool Save()
         {
             if (string.IsNullOrEmpty(StatsPath))
                 throw new Exception("Stat path not valid");
@@ -86,11 +86,12 @@ namespace SearchCacher
             using var scope = _statLock.EnterScope();
 
             if (!IsDirty)
-                return;
+                return false;
 
             string stats = this.ToCryJson();
             System.IO.File.WriteAllText(StatsPath, stats);
             IsDirty = false;
+            return true;
         }
 
         public void Start()
@@ -116,6 +117,16 @@ namespace SearchCacher
 
             _queueCancelTokenSource.Cancel();
             _queueThread.Join();
+        }
+
+        public void Reset()
+        {
+            using var scope = _statLock.EnterScope();
+
+            _largestFiles.Clear();
+            _hashes.Clear();
+            _smallesFileSize = long.MinValue;
+            IsDirty = true;
         }
 
         private void _QueueThread()
@@ -200,7 +211,6 @@ namespace SearchCacher
             if (_largestFiles.Count == 0)
                 _smallesFileSize = 0;
         }
-
 
         [JsonProperty("LargestFiles")]
         private List<StatFile> _largestFiles = new();

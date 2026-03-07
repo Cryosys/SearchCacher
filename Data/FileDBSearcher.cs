@@ -146,13 +146,16 @@ namespace SearchCacher
                     config = JsonExtensions.FromCryJson<FileDBConfig>(fileStream) ?? new FileDBConfig();
                     config.FileSavePath = dbConfig.FileDBPath;
                     config.IgnoreList = dbConfig.IgnoreList;
+
+                    if(config.Stats.StatsPath is null)
+                        config.Stats = new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath, dbConfig.CollectStats);
                 }
                 else
                     config = new FileDBConfig(dbConfig.ID, dbConfig.RootPath, dbConfig.FileDBPath, new Dir(dbConfig.RootPath, null), new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath, dbConfig.CollectStats));
-
-                config.Stats = new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath, dbConfig.CollectStats);
+                                
                 config.Stats.Load();
-                config.Stats.Start();
+                if (config.Stats.CollectStats)
+                    config.Stats.Start();
                 configs.Add(config);
                 Program.Log("Database loaded");
             }
@@ -192,6 +195,8 @@ namespace SearchCacher
                         throw new ArgumentException("Invalid config ID", nameof(configID));
 
                     Program.Log("Starting init for " + fileDBConfig.RootPath);
+
+                    fileDBConfig.Stats.Reset();
 
                     DirectoryInfo rootDirInfo = new DirectoryInfo(fileDBConfig.RootPath);
                     DirectoryInfo[] baseDirPaths = rootDirInfo.GetDirectories();
@@ -373,6 +378,11 @@ namespace SearchCacher
                 }
 
                 DateTime preStartTime = DateTime.Now;
+
+                Program.Log("Stopping Stats queue for all previous configs");
+                foreach (var config in _configs)
+                    config.Stats.Stop();
+
                 _configs = new FileDBConfig[configs.Count];
 
                 for (int configIndex = 0; configIndex < configs.Count; configIndex++)
@@ -390,6 +400,8 @@ namespace SearchCacher
                     }
 
                     var fileDBConfig = new FileDBConfig(dbConfig.ID, dbConfig.RootPath, dbConfig.FileDBPath, new Dir(dbConfig.RootPath, null), new Statistics(dbConfig.StatisticsPath, dbConfig.RootPath, dbConfig.CollectStats));
+                    if (fileDBConfig.Stats.CollectStats)
+                        fileDBConfig.Stats.Start();
                     _configs[index] = fileDBConfig;
 
                     initTasks.Add(InitDB(fileDBConfig.ID, globalCancellationToken, true));
@@ -818,7 +830,10 @@ namespace SearchCacher
                 lock (config.SaveLockObj)
                 {
                     Program.Log($"Saving Statistics for -> {config.RootPath} to {config.Stats.StatsPath}");
-                    config.Stats.Save();
+                    if (config.Stats.Save())
+                        Program.Log($"Saved Statistics for -> {config.RootPath}");
+                    else
+                        Program.Log($"Did not save Statistics for -> {config.RootPath}");
 
                     if (!config.IsDirty && !force)
                     {
